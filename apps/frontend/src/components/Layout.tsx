@@ -68,7 +68,7 @@ const Layout = () => {
         <Container maxWidth="md">
           <Toolbar disableGutters sx={{ minHeight: 64 }}>
             <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flexGrow: 1 }}>
-              {location.pathname !== "/" && (
+              {(location.pathname !== "/" || isLoggedIn) && (
                 <IconButton
                   edge="start"
                   onClick={() => setDrawerOpen(true)}
