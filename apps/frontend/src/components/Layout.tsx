@@ -68,22 +68,24 @@ const Layout = () => {
         <Container maxWidth="md">
           <Toolbar disableGutters sx={{ minHeight: 64 }}>
             <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flexGrow: 1 }}>
-              <IconButton
-                edge="start"
-                onClick={() => setDrawerOpen(true)}
-                sx={{
-                  color: "inherit",
-                  backgroundColor: "rgba(243, 107, 79, 0.08)",
-                  borderRadius: 2.5,
-                  width: 40,
-                  height: 40,
-                  "&:hover": {
-                    backgroundColor: "rgba(243, 107, 79, 0.15)",
-                  },
-                }}
-              >
-                <Menu />
-              </IconButton>
+              {location.pathname !== "/" && (
+                <IconButton
+                  edge="start"
+                  onClick={() => setDrawerOpen(true)}
+                  sx={{
+                    color: "inherit",
+                    backgroundColor: "rgba(243, 107, 79, 0.08)",
+                    borderRadius: 2.5,
+                    width: 40,
+                    height: 40,
+                    "&:hover": {
+                      backgroundColor: "rgba(243, 107, 79, 0.15)",
+                    },
+                  }}
+                >
+                  <Menu />
+                </IconButton>
+              )}
               <Brand compact />
             </Stack>
             {isLoggedIn ? (
@@ -109,21 +111,23 @@ const Layout = () => {
                 </IconButton>
               </Stack>
             ) : (
-              <Stack direction="row" spacing={1}>
-                <Typography
-                  variant="body2"
-                  fontWeight={700}
-                  sx={{
-                    color: "primary.main",
-                    cursor: "pointer",
-                    display: { xs: "none", sm: "block" },
-                  }}
-                  component="a"
-                  href="/login"
-                >
-                  Entrar
-                </Typography>
-              </Stack>
+              location.pathname !== "/" && (
+                <Stack direction="row" spacing={1}>
+                  <Typography
+                    variant="body2"
+                    fontWeight={700}
+                    sx={{
+                      color: "primary.main",
+                      cursor: "pointer",
+                      display: { xs: "none", sm: "block" },
+                    }}
+                    component="a"
+                    href="/login"
+                  >
+                    Entrar
+                  </Typography>
+                </Stack>
+              )
             )}
           </Toolbar>
         </Container>

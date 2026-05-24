@@ -1,8 +1,6 @@
 import { Bolt, FactCheck, Storefront } from "@mui/icons-material";
 import { Box, Button, Container, Paper, Stack, Typography } from "@mui/material";
 
-import Brand from "./Brand";
-
 const features = [
   {
     title: "Numeros claros",
@@ -82,8 +80,6 @@ const Onboarding = ({
         }}
       >
         <Stack spacing={4} alignItems="center" textAlign="center">
-          <Brand subtitle="Rifas colombianas en modo demo." />
-
           <Stack spacing={1.5} maxWidth={480}>
             <Typography variant="h2" sx={{ fontSize: { xs: "1.75rem", md: "2.25rem" } }}>
               {title}
