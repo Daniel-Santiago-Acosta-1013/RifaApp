@@ -59,6 +59,7 @@ inputs = {
   api_execution_arn   = dependency.api.outputs.api_execution_arn
   route_keys          = local.read_routes
   tags                = local.tags
+  db_secret_arn       = dependency.db.outputs.db_secret_arn
 
   environment = {
     API_GATEWAY_BASE_PATH = local.api_gateway_base_path
@@ -70,7 +71,6 @@ inputs = {
     DB_PORT               = tostring(dependency.db.outputs.db_port)
     DB_NAME               = dependency.db.outputs.db_name
     DB_USER               = dependency.db.outputs.db_username
-    DB_PASSWORD           = get_env("TF_VAR_db_password", get_env("DB_PASSWORD", ""))
     CORS_ALLOW_ORIGINS    = get_env("CORS_ALLOW_ORIGINS", "*")
     CORS_ALLOW_HEADERS    = get_env("CORS_ALLOW_HEADERS", "*")
     CORS_ALLOW_METHODS    = get_env("CORS_ALLOW_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS")

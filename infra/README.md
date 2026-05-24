@@ -18,10 +18,10 @@ Lambdas de lectura/escritura, API Gateway, frontend en S3 + CloudFront, y un boo
 - `infra/blueprints/modules/api/`: API Gateway HTTP
 - `infra/blueprints/modules/lambda_api_http/`: Lambda + rutas API Gateway
 - `infra/blueprints/modules/frontend/`: stack del frontend (S3 + CloudFront)
-- `infra/hcl/live/shared/`: stacks shared (network, db, api)
-- `infra/hcl/live/lambdas/`: stacks de lambdas (read/write)
-- `infra/hcl/envs/frontend/`: Terragrunt para frontend (estado separado)
-- `infra/hcl/backend.hcl.example`, `infra/hcl/root.hcl`: referencia y backend real de Terragrunt
+- `infra/terraform/live/shared/`: stacks shared (network, db, api)
+- `infra/terraform/live/lambdas/`: stacks de lambdas (read/write)
+- `infra/terraform/envs/frontend/`: Terragrunt para frontend (estado separado)
+- `infra/terraform/backend.hcl.example`, `infra/terraform/root.hcl`: referencia y backend real de Terragrunt
 - `apps/api/`: codigo del backend (FastAPI) y build de Lambda
 
 ## Requisitos
@@ -62,7 +62,7 @@ terragrunt --working-dir infra/blueprints/bootstrap apply -var="state_bucket_nam
 ```
 
 ## Paso 2: configurar backend
-Actualiza `infra/hcl/backend.hcl.example` (referencia) y `infra/hcl/root.hcl` (backend real)
+Actualiza `infra/terraform/backend.hcl.example` (referencia) y `infra/terraform/root.hcl` (backend real)
 con el bucket, key y region del estado.
 
 ## Paso 3: variables
@@ -85,16 +85,16 @@ export TF_VAR_lambda_write_source_dir="/ruta/al/lambda_dist/write"
 ```
 
 ```
-terragrunt --working-dir infra/hcl/live run-all plan
-terragrunt --working-dir infra/hcl/live run-all apply
+terragrunt --working-dir infra/terraform/live run-all plan
+terragrunt --working-dir infra/terraform/live run-all apply
 ```
 
 ## Frontend (S3 + CloudFront)
-El frontend se aplica con Terragrunt en `infra/hcl/envs/frontend` (estado separado) para evitar
+El frontend se aplica con Terragrunt en `infra/terraform/envs/frontend` (estado separado) para evitar
 que el deploy del backend modifique recursos del frontend.
 
 ```
-terragrunt --working-dir infra/hcl/envs/frontend apply
+terragrunt --working-dir infra/terraform/envs/frontend apply
 ```
 
 ## Backend API
@@ -115,7 +115,7 @@ La API FastAPI y su documentacion viven en `apps/api/README.md`.
 Workflow manual en `/.github/workflows/deploy.yml` (solo `workflow_dispatch`), usa Terragrunt.
 Workflow manual en `/.github/workflows/migrate.yml` para ejecutar migraciones via API.
 Workflow manual en `/.github/workflows/destroy.yml` para destruir toda la infraestructura con un solo disparo.
-El deploy del frontend corre desde el repo `apps/frontend` y aplica Terragrunt en `infra/hcl/envs/frontend`.
+El deploy del frontend corre desde el repo `apps/frontend` y aplica Terragrunt en `infra/terraform/envs/frontend`.
 
 Configura en GitHub (repo principal):
 - Variables: `BACKEND_REPO` (owner/RifaApp), `BACKEND_REF` (opcional), `AWS_REGION`, `API_BASE_PATH` (por defecto `rifaapp`)
@@ -124,6 +124,6 @@ Configura en GitHub (repo principal):
 ## Notas
 - `db_password` se guarda en el estado de Terraform.
 - `enable_nat_gateway` esta en `false` para reducir costos. Activala si Lambda necesita salida a internet.
-- Para eliminar recursos: `terragrunt --working-dir infra/hcl/live run-all destroy`. El bucket de estado se elimina aparte en `infra/blueprints/bootstrap/`.
+- Para eliminar recursos: `terragrunt --working-dir infra/terraform/live run-all destroy`. El bucket de estado se elimina aparte en `infra/blueprints/bootstrap/`.
 - El workflow `destroy.yml` no pide inputs: destruye frontend, backend, lambdas, base de datos y bucket de estado usando las variables del repo (`PROJECT_NAME`, `ENVIRONMENT`, `STATE_BUCKET_NAME`, `BACKEND_REPO`, `BACKEND_REF`).
 - Las migraciones via API requieren `sqitch` disponible en el runtime de la Lambda (PATH o `SQITCH_BIN`).

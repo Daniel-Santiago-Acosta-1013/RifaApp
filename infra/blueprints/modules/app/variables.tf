@@ -58,11 +58,6 @@ variable "db_username" {
   default = "appuser"
 }
 
-variable "db_password" {
-  type      = string
-  sensitive = true
-}
-
 variable "db_port" {
   type    = number
   default = 5432

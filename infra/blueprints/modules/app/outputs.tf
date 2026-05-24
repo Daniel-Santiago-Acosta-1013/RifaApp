@@ -26,6 +26,10 @@ output "db_port" {
   value = var.db_port
 }
 
+output "db_secret_arn" {
+  value = aws_rds_cluster.db.master_user_secret[0].secret_arn
+}
+
 output "vpc_id" {
   value = aws_vpc.main.id
 }

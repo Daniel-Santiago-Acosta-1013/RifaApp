@@ -81,12 +81,12 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Apply frontend infra
-        working-directory: infra/hcl/envs/frontend
+        working-directory: infra/terraform/envs/frontend
         run: terragrunt --non-interactive apply -auto-approve
 
       - name: Read frontend outputs
         id: frontend
-        working-directory: infra/hcl/envs/frontend
+        working-directory: infra/terraform/envs/frontend
         run: |
           terragrunt output -json > /tmp/frontend_outputs.json
           python3 - <<'PY'

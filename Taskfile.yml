@@ -3,7 +3,7 @@ version: "3"
 vars:
   API_DIR: apps/api
   FRONTEND_DIR: apps/frontend
-  INFRA_HCL_DIR: infra/hcl
+  INFRA_HCL_DIR: infra/terraform
   INFRA_BLUEPRINTS_DIR: infra/blueprints
   API_IMAGE: rifaapp-api
   FRONTEND_IMAGE: rifaapp-frontend

@@ -37,6 +37,22 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
+resource "aws_iam_role_policy" "lambda_secrets" {
+  name = "${local.name_prefix}-lambda-secrets"
+  role = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = aws_rds_cluster.db.master_user_secret[0].secret_arn
+      }
+    ]
+  })
+}
+
 resource "aws_cloudwatch_log_group" "lambda_read" {
   name              = "/aws/lambda/${local.name_prefix}-read"
   retention_in_days = var.lambda_log_retention
@@ -74,7 +90,7 @@ resource "aws_lambda_function" "read" {
       DB_PORT               = tostring(var.db_port)
       DB_NAME               = var.db_name
       DB_USER               = var.db_username
-      DB_PASSWORD           = var.db_password
+      DB_SECRET_ARN         = aws_rds_cluster.db.master_user_secret[0].secret_arn
       CORS_ALLOW_ORIGINS    = join(",", var.cors_allow_origins)
       CORS_ALLOW_HEADERS    = join(",", var.cors_allow_headers)
       CORS_ALLOW_METHODS    = join(",", var.cors_allow_methods)
@@ -110,7 +126,7 @@ resource "aws_lambda_function" "write" {
       DB_PORT               = tostring(var.db_port)
       DB_NAME               = var.db_name
       DB_USER               = var.db_username
-      DB_PASSWORD           = var.db_password
+      DB_SECRET_ARN         = aws_rds_cluster.db.master_user_secret[0].secret_arn
       CORS_ALLOW_ORIGINS    = join(",", var.cors_allow_origins)
       CORS_ALLOW_HEADERS    = join(",", var.cors_allow_headers)
       CORS_ALLOW_METHODS    = join(",", var.cors_allow_methods)

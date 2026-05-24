@@ -75,19 +75,19 @@ jobs:
         run: |
           echo "Action: ${{ github.event.inputs.action }}"
           echo "Target directories:"
-          echo "  - infra/hcl/live (shared + lambdas)"
-          echo "  - infra/hcl/envs/frontend"
+          echo "  - infra/terraform/live (shared + lambdas)"
+          echo "  - infra/terraform/envs/frontend"
           echo "The Terraform remote state S3 bucket (bootstrap) is NOT part of this scope."
 
       - name: Terragrunt plan all (live)
         if: ${{ github.event.inputs.action == 'plan' }}
-        working-directory: infra/hcl/live
+        working-directory: infra/terraform/live
         run: |
           terragrunt --non-interactive run --all -- plan
 
       - name: Terragrunt plan (frontend)
         if: ${{ github.event.inputs.action == 'plan' }}
-        working-directory: infra/hcl/envs/frontend
+        working-directory: infra/terraform/envs/frontend
         run: |
           terragrunt --non-interactive plan
 
@@ -136,13 +136,13 @@ jobs:
 
       - name: Terragrunt destroy all (live)
         if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
-        working-directory: infra/hcl/live
+        working-directory: infra/terraform/live
         run: |
           terragrunt --log-level error --non-interactive run --all -- destroy -auto-approve || true
 
       - name: Terragrunt destroy (frontend)
         if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
-        working-directory: infra/hcl/envs/frontend
+        working-directory: infra/terraform/envs/frontend
         run: |
           terragrunt --non-interactive destroy -auto-approve || true
 
@@ -163,14 +163,20 @@ jobs:
         working-directory: apps/api
         run: ./scripts/build_lambda.sh
 
+      - name: Copy Lambda artifacts to backend path
+        if: ${{ github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy-and-recreate' }}
+        run: |
+          mkdir -p infra/backend/lambda_dist
+          cp -r apps/api/lambda_dist/* infra/backend/lambda_dist/ || true
+
       - name: Terragrunt apply all (live)
         if: ${{ github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy-and-recreate' }}
-        working-directory: infra/hcl/live
+        working-directory: infra/terraform/live
         run: |
           terragrunt --non-interactive run --all -- apply -auto-approve
 
       - name: Terragrunt apply (frontend)
         if: ${{ github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy-and-recreate' }}
-        working-directory: infra/hcl/envs/frontend
+        working-directory: infra/terraform/envs/frontend
         run: |
           terragrunt --non-interactive apply -auto-approve

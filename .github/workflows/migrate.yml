@@ -75,9 +75,9 @@ jobs:
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Read DB endpoint from Terraform outputs
+      - name: Read DB outputs from Terraform
         id: db
-        working-directory: infra/hcl/live/shared/db
+        working-directory: infra/terraform/live/shared/db
         run: |
           terragrunt output -json > /tmp/db_outputs.json
           python3 - <<'PY'
@@ -88,12 +88,25 @@ jobs:
           port = str(data.get("db_port", {}).get("value", "5432"))
           name = data.get("db_name", {}).get("value", "rifaapp")
           user = data.get("db_username", {}).get("value", "appuser")
+          secret_arn = data.get("db_secret_arn", {}).get("value", "")
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"endpoint={endpoint}\n")
               f.write(f"port={port}\n")
               f.write(f"name={name}\n")
               f.write(f"user={user}\n")
+              f.write(f"secret_arn={secret_arn}\n")
           PY
+
+      - name: Retrieve DB password from Secrets Manager
+        id: secret
+        run: |
+          SECRET_ARN="${{ steps.db.outputs.secret_arn }}"
+          if [ -z "$SECRET_ARN" ]; then
+            echo "ERROR: db_secret_arn is empty. Cannot retrieve password." >&2
+            exit 1
+          fi
+          PASSWORD=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ARN" --query 'SecretString' --output text | python3 -c "import json,sys; print(json.load(sys.stdin)['password'])")
+          echo "db_password=$PASSWORD" >> "$GITHUB_OUTPUT"
 
       - name: Install Sqitch
         run: |
@@ -108,7 +121,7 @@ jobs:
           DB_PORT: ${{ steps.db.outputs.port }}
           DB_NAME: ${{ steps.db.outputs.name }}
           DB_USER: ${{ steps.db.outputs.user }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_PASSWORD: ${{ steps.secret.outputs.db_password }}
           SQITCH_TARGET: "db:pg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
         run: |
           echo "Running sqitch ${{ inputs.target }}..."

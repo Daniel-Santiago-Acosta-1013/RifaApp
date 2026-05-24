@@ -61,6 +61,11 @@ jobs:
         working-directory: apps/api
         run: ./scripts/build_lambda.sh
 
+      - name: Copy Lambda artifacts to backend path
+        run: |
+          mkdir -p infra/backend/lambda_dist
+          cp -r apps/api/lambda_dist/* infra/backend/lambda_dist/ || true
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -81,7 +86,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Apply lambdas only
-        working-directory: infra/hcl/live
+        working-directory: infra/terraform/live
         run: |
           if [ "${{ inputs.lambda_target }}" = "none" ]; then
             echo "lambda_target is none; skipping apply."

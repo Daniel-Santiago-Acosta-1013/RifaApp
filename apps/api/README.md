@@ -66,7 +66,7 @@ Genera `lambda_dist/read` y `lambda_dist/write` con dependencias y paquetes `rif
 ./scripts/build_lambda.sh
 ```
 
-Terragrunt en `../../infra/hcl/envs/dev/` usa `lambda_dist/read` y `lambda_dist/write`.
+Terragrunt en `../../infra/terraform/envs/dev/` usa `lambda_dist/read` y `lambda_dist/write`.
 
 ## Deploy local con uv
 Este comando construye la Lambda y ejecuta Terragrunt desde `envs/dev` en el repo infra:
@@ -83,7 +83,7 @@ Variables requeridas:
 Opciones utiles:
 - `uv run deploy --plan-only`
 - `uv run deploy --lambda-only`
-- `uv run deploy --infra-dir /ruta/a/infra/hcl`
+- `uv run deploy --infra-dir /ruta/a/infra/terraform`
 
 ## Deploy CI/CD
 Este repo puede notificar al repo de infraestructura para desplegar cambios.

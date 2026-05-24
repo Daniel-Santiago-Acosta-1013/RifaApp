@@ -48,6 +48,11 @@ variable "environment" {
   default = {}
 }
 
+variable "db_secret_arn" {
+  type    = string
+  default = ""
+}
+
 variable "api_id" {
   type = string
 }

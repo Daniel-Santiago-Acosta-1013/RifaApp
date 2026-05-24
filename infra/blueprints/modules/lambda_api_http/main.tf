@@ -31,6 +31,23 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
+resource "aws_iam_role_policy" "lambda_secrets" {
+  count = var.db_secret_arn != "" ? 1 : 0
+  name  = "${var.lambda_name}-secrets"
+  role  = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.db_secret_arn
+      }
+    ]
+  })
+}
+
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = "/aws/lambda/${var.lambda_name}"
   retention_in_days = var.lambda_log_retention
@@ -54,7 +71,10 @@ resource "aws_lambda_function" "lambda" {
   }
 
   environment {
-    variables = var.environment
+    variables = merge(
+      var.environment,
+      var.db_secret_arn != "" ? { DB_SECRET_ARN = var.db_secret_arn } : {}
+    )
   }
 
   depends_on = [aws_cloudwatch_log_group.lambda]

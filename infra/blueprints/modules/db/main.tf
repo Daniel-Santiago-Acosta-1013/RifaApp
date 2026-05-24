@@ -39,23 +39,23 @@ resource "aws_db_subnet_group" "db" {
 }
 
 resource "aws_rds_cluster" "db" {
-  cluster_identifier      = "${var.name_prefix}-aurora"
-  engine                  = var.db_engine
-  engine_version          = var.db_engine_version
-  database_name           = var.db_name
-  master_username         = var.db_username
-  master_password         = var.db_password
-  snapshot_identifier     = var.db_snapshot_identifier
-  port                    = var.db_port
-  vpc_security_group_ids  = [aws_security_group.db.id]
-  db_subnet_group_name    = aws_db_subnet_group.db.name
-  backup_retention_period = var.db_backup_retention
-  storage_encrypted       = true
-  deletion_protection     = var.db_deletion_protection
-  skip_final_snapshot     = var.db_skip_final_snapshot
-  apply_immediately       = var.db_apply_immediately
-  copy_tags_to_snapshot   = true
-  tags                    = var.tags
+  cluster_identifier        = "${var.name_prefix}-aurora"
+  engine                    = var.db_engine
+  engine_version            = var.db_engine_version
+  database_name             = var.db_name
+  master_username           = var.db_username
+  manage_master_user_password = true
+  snapshot_identifier       = var.db_snapshot_identifier
+  port                      = var.db_port
+  vpc_security_group_ids    = [aws_security_group.db.id]
+  db_subnet_group_name      = aws_db_subnet_group.db.name
+  backup_retention_period   = var.db_backup_retention
+  storage_encrypted         = true
+  deletion_protection       = var.db_deletion_protection
+  skip_final_snapshot       = var.db_skip_final_snapshot
+  apply_immediately         = var.db_apply_immediately
+  copy_tags_to_snapshot     = true
+  tags                      = var.tags
 }
 
 resource "aws_rds_cluster_instance" "writer" {

@@ -29,7 +29,6 @@ inputs = {
   db_engine_version      = get_env("DB_ENGINE_VERSION", "") != "" ? get_env("DB_ENGINE_VERSION", "") : null
   db_name                = get_env("DB_NAME", "rifaapp")
   db_username            = get_env("DB_USERNAME", "appuser")
-  db_password            = get_env("TF_VAR_db_password", get_env("DB_PASSWORD", ""))
   db_port                = tonumber(get_env("DB_PORT", "5432"))
   db_instance_class      = get_env("DB_INSTANCE_CLASS", "db.t3.medium")
   db_reader_instance_count = tonumber(get_env("DB_READER_INSTANCE_COUNT", "1"))

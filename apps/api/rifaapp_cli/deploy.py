@@ -39,15 +39,6 @@ def _resolve_paths(infra_dir: str | None) -> tuple[Path, Path]:
     return repo_root, infra_path
 
 
-def _ensure_db_password(env: dict) -> None:
-    if env.get("TF_VAR_db_password"):
-        return
-    if env.get("DB_PASSWORD"):
-        env["TF_VAR_db_password"] = env["DB_PASSWORD"]
-        return
-    raise RuntimeError("TF_VAR_db_password or DB_PASSWORD is required for Terraform apply")
-
-
 def _load_env_file(env: dict, path: Path) -> None:
     if not path.exists():
         return
@@ -108,7 +99,6 @@ def main() -> int:
     env["TF_VAR_lambda_write_source_dir"] = str(lambda_write_dir)
     env["TF_VAR_lambda_layer_read_source_dir"] = str(lambda_layer_read_dir)
     env["TF_VAR_lambda_layer_write_source_dir"] = str(lambda_layer_write_dir)
-    _ensure_db_password(env)
 
     terragrunt_bin = _ensure_terragrunt()
     _run([terragrunt_bin, "init"], cwd=infra_path, env=env)
