@@ -188,8 +188,9 @@ resource "aws_codebuild_project" "migrations" {
         install:
           commands:
             - apt-get update
-            - apt-get install -y libdbd-pg-perl sqitch
+            - apt-get install -y libdbd-pg-perl postgresql-client sqitch
             - sqitch --version
+            - psql --version
         build:
           commands:
             - test -n "$MIGRATION_SOURCE_KEY"
