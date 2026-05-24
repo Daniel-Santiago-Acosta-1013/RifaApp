@@ -1,4 +1,5 @@
 from pathlib import Path
+import pytest
 from types import SimpleNamespace
 
 import rifaapp.write.src.infra.migrations as migrations
@@ -67,3 +68,13 @@ def test_ensure_migrations_runs_once(monkeypatch):
     migrations.ensure_migrations()
 
     assert counter["count"] == 1
+
+
+def test_deploy_migrations_requires_sqitch(monkeypatch):
+    def missing_sqitch(command):
+        raise RuntimeError("Sqitch not found. Install it and ensure it is in PATH.")
+
+    monkeypatch.setattr(migrations, "_run_sqitch", missing_sqitch)
+
+    with pytest.raises(RuntimeError, match="Sqitch not found"):
+        migrations._deploy_migrations()

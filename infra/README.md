@@ -113,7 +113,7 @@ La API FastAPI y su documentacion viven en `apps/api/README.md`.
 
 ## CI/CD (GitHub Actions)
 Workflow manual en `/.github/workflows/deploy.yml` (solo `workflow_dispatch`), usa Terragrunt.
-Workflow manual en `/.github/workflows/migrate.yml` para ejecutar migraciones via API.
+Workflow manual en `/.github/workflows/migrate.yml` para ejecutar migraciones con Sqitch.
 Workflow manual en `/.github/workflows/destroy.yml` para destruir toda la infraestructura con un solo disparo.
 El deploy del frontend corre desde el repo `apps/frontend` y aplica Terragrunt en `infra/terraform/envs/frontend`.
 
@@ -126,4 +126,5 @@ Configura en GitHub (repo principal):
 - `enable_nat_gateway` esta en `false` para reducir costos. Activala si Lambda necesita salida a internet.
 - Para eliminar recursos: `terragrunt --working-dir infra/terraform/live run-all destroy`. El bucket de estado se elimina aparte en `infra/blueprints/bootstrap/`.
 - El workflow `destroy.yml` no pide inputs: destruye frontend, backend, lambdas, base de datos y bucket de estado usando las variables del repo (`PROJECT_NAME`, `ENVIRONMENT`, `STATE_BUCKET_NAME`, `BACKEND_REPO`, `BACKEND_REF`).
-- Las migraciones via API requieren `sqitch` disponible en el runtime de la Lambda (PATH o `SQITCH_BIN`).
+- Las migraciones deben ejecutarse con Sqitch. No hay fallback a SQL directo.
+- El workflow de migraciones debe correr en un entorno con conectividad al endpoint privado de Aurora, por ejemplo un runner self-hosted dentro de la VPC.

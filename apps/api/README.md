@@ -51,13 +51,13 @@ POST /rifaapp/migrations/run
 ```
 
 Sqitch toma los cambios desde `rifaapp/db/` y requiere tener el binario disponible
-en el entorno (PATH o `SQITCH_BIN`). Opcionalmente puedes definir:
+en el entorno (PATH o `SQITCH_BIN`). Las migraciones fallan si Sqitch no esta
+disponible; no hay fallback a ejecucion directa de SQL. Opcionalmente puedes definir:
 - `SQITCH_TARGET`: override de la conexion (ej. `db:pg://user@host:5432/dbname`)
 - `SQITCH_DIR`: directorio raiz donde viven `sqitch.conf` y `sqitch.plan`
 
 En Lambda, provee `sqitch` via layer o runtime base si usas `AUTO_MIGRATE` o
-el endpoint de migraciones. Si `sqitch` no esta disponible, el backend ejecuta
-los SQL de `rifaapp/db/deploy` directamente como fallback.
+el endpoint de migraciones.
 
 ## Build para Lambda
 Genera `lambda_dist/read` y `lambda_dist/write` con dependencias y paquetes `rifaapp/`:
