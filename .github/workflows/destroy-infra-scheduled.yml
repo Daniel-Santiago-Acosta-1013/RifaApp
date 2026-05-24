@@ -107,16 +107,20 @@ jobs:
           chmod +x /usr/local/bin/terragrunt
           terragrunt --version
 
-      - name: Ensure Lambda build directories exist for destroy refresh
+      - name: Ensure Lambda build artifacts exist for destroy refresh
         if: ${{ steps.managed-resources.outputs.should_destroy == 'true' }}
         run: |
           # Terraform destroy still refreshes data.archive_file sources.
-          # Create empty directories so the refresh does not fail on missing paths.
+          # Create minimal dummy files so the data sources can build non-empty archives.
           mkdir -p infra/backend/lambda_dist/read
+          echo "def handler(event,context):return{}" > infra/backend/lambda_dist/read/index.py
           mkdir -p infra/backend/lambda_dist/write
-          mkdir -p infra/backend/lambda_dist/layer-read
-          mkdir -p infra/backend/lambda_dist/layer-write
-          echo "Created placeholder Lambda build directories."
+          echo "def handler(event,context):return{}" > infra/backend/lambda_dist/write/index.py
+          mkdir -p infra/backend/lambda_dist/layer-read/python
+          touch infra/backend/lambda_dist/layer-read/python/.gitkeep
+          mkdir -p infra/backend/lambda_dist/layer-write/python
+          touch infra/backend/lambda_dist/layer-write/python/.gitkeep
+          echo "Created placeholder Lambda build artifacts."
 
       - name: Cleanup orphaned AWS resources in project VPC
         if: ${{ steps.managed-resources.outputs.should_destroy == 'true' }}
