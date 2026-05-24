@@ -157,6 +157,32 @@ jobs:
         run: |
           terragrunt --non-interactive destroy -auto-approve || true
 
+      - name: Post-destroy cleanup of remaining project resources
+        if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
+        run: |
+          PROJECT_NAME="${{ vars.PROJECT_NAME || 'rifaapp' }}"
+          ENVIRONMENT="${{ vars.ENVIRONMENT || 'dev' }}"
+          NAME_PREFIX="${PROJECT_NAME}-${ENVIRONMENT}"
+
+          echo "=== Cleaning up Lambda Layers ==="
+          for layer_arn in $(aws lambda list-layers --query "Layers[?starts_with(LayerName, \`${NAME_PREFIX}\`)].LayerArn" --output text 2>/dev/null); do
+            echo "  Deleting Lambda Layer $layer_arn"
+            aws lambda delete-layer-version --layer-name "$layer_arn" --version-number 1 2>/dev/null || true
+            aws lambda delete-layer-version --layer-name "$layer_arn" --version-number 2 2>/dev/null || true
+          done
+
+          echo "=== Cleaning up CloudWatch Log Groups ==="
+          for log_group in $(aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/${NAME_PREFIX}" --query 'logGroups[*].logGroupName' --output text 2>/dev/null); do
+            echo "  Deleting log group $log_group"
+            aws logs delete-log-group --log-group-name "$log_group" || true
+          done
+
+          echo "=== Cleaning up Secrets Manager secrets (with recovery window) ==="
+          for secret_arn in $(aws secretsmanager list-secrets --filters Key=name,Values="rds!cluster-${NAME_PREFIX}" --query 'SecretList[*].ARN' --output text 2>/dev/null); do
+            echo "  Scheduling deletion for secret $secret_arn"
+            aws secretsmanager delete-secret --secret-id "$secret_arn" --force-delete-without-recovery 2>/dev/null || true
+          done
+
       - name: Setup Python
         if: ${{ github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy-and-recreate' }}
         uses: actions/setup-python@v5
