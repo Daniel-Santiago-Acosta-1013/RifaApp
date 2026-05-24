@@ -1,0 +1,133 @@
+name: Infra Lifecycle
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Choose infra action: plan (preview), apply (deploy), destroy (remove), destroy-and-recreate (full rebuild)'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+          - destroy-and-recreate
+      confirm_destroy:
+        description: 'Required only for destroy or destroy-and-recreate. Type DESTROY to confirm.'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  TF_VERSION: '1.5.7'
+  TG_VERSION: '0.96.1'
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TG_NON_INTERACTIVE: "true"
+
+concurrency:
+  group: rifaapp-infra-lifecycle
+  cancel-in-progress: false
+
+jobs:
+  manage-infrastructure:
+    name: ${{ github.event.inputs.action }} infrastructure
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TG_VERSION }}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+          terragrunt --version
+
+      - name: Confirm destroy
+        if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]; then
+            echo "ERROR: To destroy infrastructure, set confirm_destroy to DESTROY."
+            exit 1
+          fi
+
+      - name: Explain scope
+        run: |
+          echo "Action: ${{ github.event.inputs.action }}"
+          echo "Target directories:"
+          echo "  - infra/hcl/live (shared + lambdas)"
+          echo "  - infra/hcl/envs/frontend"
+          echo "The Terraform remote state S3 bucket (bootstrap) is NOT part of this scope."
+
+      - name: Terragrunt plan all (live)
+        if: ${{ github.event.inputs.action == 'plan' }}
+        working-directory: infra/hcl/live
+        run: |
+          terragrunt --non-interactive run --all -- plan
+
+      - name: Terragrunt plan (frontend)
+        if: ${{ github.event.inputs.action == 'plan' }}
+        working-directory: infra/hcl/envs/frontend
+        run: |
+          terragrunt --non-interactive plan
+
+      - name: Terragrunt destroy all (live)
+        if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
+        working-directory: infra/hcl/live
+        run: |
+          terragrunt --log-level error --non-interactive run --all -- destroy -auto-approve || true
+
+      - name: Terragrunt destroy (frontend)
+        if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
+        working-directory: infra/hcl/envs/frontend
+        run: |
+          terragrunt --non-interactive destroy -auto-approve || true
+
+      - name: Setup Python
+        if: ${{ github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy-and-recreate' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        if: ${{ github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy-and-recreate' }}
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build Lambda packages
+        if: ${{ github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy-and-recreate' }}
+        working-directory: apps/api
+        run: ./scripts/build_lambda.sh
+
+      - name: Terragrunt apply all (live)
+        if: ${{ github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy-and-recreate' }}
+        working-directory: infra/hcl/live
+        run: |
+          terragrunt --non-interactive run --all -- apply -auto-approve
+
+      - name: Terragrunt apply (frontend)
+        if: ${{ github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy-and-recreate' }}
+        working-directory: infra/hcl/envs/frontend
+        run: |
+          terragrunt --non-interactive apply -auto-approve

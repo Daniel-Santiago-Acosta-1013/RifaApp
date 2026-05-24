@@ -1,0 +1,125 @@
+name: Scheduled Infra Cleanup
+
+on:
+  schedule:
+    # 2:00 a.m. Colombia time (America/Bogota, UTC-5).
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  TF_VERSION: '1.5.7'
+  TG_VERSION: '0.96.1'
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TG_NON_INTERACTIVE: "true"
+
+concurrency:
+  group: rifaapp-infra-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup-infrastructure:
+    name: Destroy all project infrastructure
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check managed resources
+        id: managed-resources
+        run: |
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          state_bucket="${{ vars.STATE_BUCKET_NAME || 'rifaapp-terraform-state-' }}${account_id}"
+
+          # Modules to check for managed resources
+          modules=(
+            "envs/frontend"
+            "live/shared/network"
+            "live/shared/db"
+            "live/shared/api"
+            "live/shared/lambda-layer-read"
+            "live/shared/lambda-layer-write"
+            "live/lambdas/rifa-app-read"
+            "live/lambdas/rifa-app-write"
+          )
+
+          should_destroy=false
+
+          for module in "${modules[@]}"; do
+            state_key="rifaapp/${module}/terraform.tfstate"
+            state_file="${RUNNER_TEMP}/${module//\//_}.tfstate"
+            echo "Checking remote Terraform state s3://${state_bucket}/${state_key}..."
+
+            set +e
+            head_output="$(aws s3api head-object --bucket "$state_bucket" --key "$state_key" 2>&1)"
+            head_exit=$?
+            set -e
+
+            if [ "$head_exit" -eq 0 ]; then
+              aws s3api get-object --bucket "$state_bucket" --key "$state_key" "$state_file" >/dev/null
+              resource_count="$(jq '[.resources[]? | select((.mode // "managed") == "managed")] | length' "$state_file")"
+              echo "${module}: ${resource_count} managed resources"
+
+              if [ "$resource_count" -gt 0 ]; then
+                should_destroy=true
+              fi
+            elif printf '%s\n' "$head_output" | grep -Eiq 'Not Found|NoSuchKey|NoSuchBucket|404'; then
+              echo "${module}: no remote state object found, skipping."
+            else
+              printf '%s\n' "$head_output"
+              exit "$head_exit"
+            fi
+          done
+
+          if [ "$should_destroy" = "true" ]; then
+            echo "should_destroy=true" >> "$GITHUB_OUTPUT"
+            echo "Project infrastructure exists and will be destroyed."
+          else
+            echo "should_destroy=false" >> "$GITHUB_OUTPUT"
+            echo "No project infrastructure found to destroy."
+          fi
+
+      - name: Setup Terraform
+        if: ${{ steps.managed-resources.outputs.should_destroy == 'true' }}
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        if: ${{ steps.managed-resources.outputs.should_destroy == 'true' }}
+        run: |
+          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TG_VERSION }}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+          terragrunt --version
+
+      - name: Destroy frontend
+        if: ${{ steps.managed-resources.outputs.should_destroy == 'true' }}
+        working-directory: infra/hcl/envs/frontend
+        run: |
+          terragrunt --non-interactive destroy -auto-approve || true
+
+      - name: Destroy live infrastructure
+        if: ${{ steps.managed-resources.outputs.should_destroy == 'true' }}
+        working-directory: infra/hcl/live
+        run: |
+          terragrunt --log-level error --non-interactive run --all -- destroy -auto-approve || true
+
+      - name: Confirm remote state backend is preserved
+        run: |
+          echo "The Terraform remote state S3 bucket is configured as an external backend."
+          echo "It is not managed by these Terragrunt modules, so this cleanup leaves it intact."

@@ -6,19 +6,40 @@ on:
       backend_ref:
         description: "Ref del backend para migraciones (branch o tag). Opcional."
         required: false
+        default: "main"
         type: string
+      target:
+        description: "Tipo de migracion"
+        required: true
+        default: "deploy"
+        type: choice
+        options:
+          - deploy
+          - verify
+          - status
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  TF_VERSION: '1.5.7'
+  TG_VERSION: '0.96.1'
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
   TG_NON_INTERACTIVE: "true"
 
+concurrency:
+  group: rifaapp-migrations
+  cancel-in-progress: false
+
 jobs:
   migrate:
+    name: Run database migrations
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Checkout monorepo
         uses: actions/checkout@v4
@@ -38,14 +59,14 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.7
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
-      - name: Install Terragrunt
+      - name: Setup Terragrunt
         run: |
-          TERRAGRUNT_VERSION="0.96.1"
-          curl -sSL -o terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64"
-          chmod +x terragrunt
-          sudo mv terragrunt /usr/local/bin/terragrunt
+          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TG_VERSION }}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+          terragrunt --version
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -54,9 +75,42 @@ jobs:
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Run migrations via API
-        working-directory: apps/api
+      - name: Read DB endpoint from Terraform outputs
+        id: db
+        working-directory: infra/hcl/live/shared/db
         run: |
-          echo "Ejecutando migraciones via API..."
-          # Ajusta este paso segun tu metodo real de migraciones (endpoint POST /rifaapp/migrations/run)
-          # uv run python -c "import requests; requests.post('https://API_URL/rifaapp/migrations/run')"
+          terragrunt output -json > /tmp/db_outputs.json
+          python3 - <<'PY'
+          import json, os
+          with open("/tmp/db_outputs.json", "r") as f:
+              data = json.load(f)
+          endpoint = data.get("db_cluster_endpoint", {}).get("value", "")
+          port = str(data.get("db_port", {}).get("value", "5432"))
+          name = data.get("db_name", {}).get("value", "rifaapp")
+          user = data.get("db_username", {}).get("value", "appuser")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"endpoint={endpoint}\n")
+              f.write(f"port={port}\n")
+              f.write(f"name={name}\n")
+              f.write(f"user={user}\n")
+          PY
+
+      - name: Install Sqitch
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbd-pg-perl sqitch
+          sqitch --version
+
+      - name: Run migrations
+        working-directory: apps/api
+        env:
+          DB_HOST: ${{ steps.db.outputs.endpoint }}
+          DB_PORT: ${{ steps.db.outputs.port }}
+          DB_NAME: ${{ steps.db.outputs.name }}
+          DB_USER: ${{ steps.db.outputs.user }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          SQITCH_TARGET: "db:pg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+        run: |
+          echo "Running sqitch ${{ inputs.target }}..."
+          cd rifaapp/db
+          sqitch ${{ inputs.target }} "${SQITCH_TARGET}"

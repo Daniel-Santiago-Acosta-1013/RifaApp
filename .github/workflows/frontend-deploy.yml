@@ -10,19 +10,27 @@ on:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  VITE_API_READ_BASE_URL: ${{ vars.VITE_API_READ_BASE_URL }}
-  VITE_API_WRITE_BASE_URL: ${{ vars.VITE_API_WRITE_BASE_URL }}
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  VITE_API_READ_BASE_URL: ${{ vars.VITE_API_READ_BASE_URL }}
+  VITE_API_WRITE_BASE_URL: ${{ vars.VITE_API_WRITE_BASE_URL }}
+  TF_VERSION: '1.5.7'
+  TG_VERSION: '0.96.1'
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
   TG_NON_INTERACTIVE: "true"
 
+concurrency:
+  group: rifaapp-frontend-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
+    name: Deploy frontend to S3 + CloudFront
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - name: Checkout monorepo
         uses: actions/checkout@v4
@@ -56,14 +64,14 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.7
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
-      - name: Install Terragrunt
+      - name: Setup Terragrunt
         run: |
-          TERRAGRUNT_VERSION="0.96.1"
-          curl -sSL -o terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64"
-          chmod +x terragrunt
-          sudo mv terragrunt /usr/local/bin/terragrunt
+          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TG_VERSION }}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+          terragrunt --version
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -72,9 +80,9 @@ jobs:
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Apply frontend infra (Terraform)
+      - name: Apply frontend infra
         working-directory: infra/hcl/envs/frontend
-        run: terragrunt apply -auto-approve
+        run: terragrunt --non-interactive apply -auto-approve
 
       - name: Read frontend outputs
         id: frontend

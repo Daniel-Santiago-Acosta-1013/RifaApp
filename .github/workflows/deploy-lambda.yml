@@ -6,23 +6,41 @@ on:
       lambda_target:
         description: "Target lambda(s) to deploy (both, read, write, none)"
         required: true
-        type: string
+        default: "both"
+        type: choice
+        options:
+          - both
+          - read
+          - write
+          - none
       backend_ref:
         description: "Ref del backend (branch o tag)"
         required: true
+        default: "main"
         type: string
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  TF_VERSION: '1.5.7'
+  TG_VERSION: '0.96.1'
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
   TG_NON_INTERACTIVE: "true"
 
+concurrency:
+  group: rifaapp-lambda-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
+    name: Deploy Lambda packages
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Checkout monorepo
         uses: actions/checkout@v4
@@ -46,14 +64,14 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.7
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
-      - name: Install Terragrunt
+      - name: Setup Terragrunt
         run: |
-          TERRAGRUNT_VERSION="0.96.1"
-          curl -sSL -o terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64"
-          chmod +x terragrunt
-          sudo mv terragrunt /usr/local/bin/terragrunt
+          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TG_VERSION }}/terragrunt_linux_amd64" -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+          terragrunt --version
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -62,11 +80,21 @@ jobs:
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Apply infra (live)
+      - name: Apply lambdas only
         working-directory: infra/hcl/live
         run: |
           if [ "${{ inputs.lambda_target }}" = "none" ]; then
             echo "lambda_target is none; skipping apply."
             exit 0
           fi
-          terragrunt run-all apply -auto-approve
+          if [ "${{ inputs.lambda_target }}" = "read" ]; then
+            terragrunt --non-interactive run --all -- apply -auto-approve \
+              --terragrunt-include-dir "lambdas/rifa-app-read"
+          elif [ "${{ inputs.lambda_target }}" = "write" ]; then
+            terragrunt --non-interactive run --all -- apply -auto-approve \
+              --terragrunt-include-dir "lambdas/rifa-app-write"
+          else
+            terragrunt --non-interactive run --all -- apply -auto-approve \
+              --terragrunt-include-dir "lambdas/rifa-app-read" \
+              --terragrunt-include-dir "lambdas/rifa-app-write"
+          fi
