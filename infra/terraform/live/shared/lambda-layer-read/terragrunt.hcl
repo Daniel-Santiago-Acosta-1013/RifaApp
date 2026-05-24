@@ -26,6 +26,6 @@ inputs = {
   layer_name          = get_env("LAMBDA_LAYER_READ_NAME", "${local.name_prefix}-deps-read")
   layer_source_dir    = local.lambda_layer_dir
   layer_description   = get_env("LAMBDA_LAYER_DESCRIPTION", "Dependencias compartidas para Lambda read")
-  compatible_runtimes = [get_env("LAMBDA_RUNTIME", "python3.11")]
+  compatible_runtimes = [get_env("LAMBDA_RUNTIME", "python3.14")]
   tags                = local.tags
 }

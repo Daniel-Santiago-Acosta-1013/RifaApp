@@ -10,6 +10,7 @@ import {
 import {
   Box,
   Button,
+  CircularProgress,
   Container,
   IconButton,
   InputAdornment,
@@ -29,6 +30,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,11 +39,22 @@ const LoginPage = () => {
       setError("Completa todos los campos.");
       return;
     }
-    const success = await login(email, password);
-    if (success) {
-      navigate("/");
-    } else {
-      setError("Credenciales incorrectas.");
+    setIsSubmitting(true);
+    try {
+      const result = await login(email, password);
+      if (result.success) {
+        navigate("/");
+        return;
+      }
+      if (result.error?.status === 401) {
+        setError("Credenciales incorrectas.");
+      } else if (result.error?.status === 0 || !result.error?.status) {
+        setError(result.error?.message || "Error de conexion. Intenta de nuevo.");
+      } else {
+        setError(result.error?.message || "Error del servidor. Intenta mas tarde.");
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -135,10 +148,11 @@ const LoginPage = () => {
                 variant="contained"
                 size="large"
                 fullWidth
-                startIcon={<Login />}
+                disabled={isSubmitting}
+                startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <Login />}
                 sx={{ py: 1.5, borderRadius: 12 }}
               >
-                Iniciar sesion
+                {isSubmitting ? "Iniciando sesion..." : "Iniciar sesion"}
               </Button>
 
               <Stack direction="row" spacing={0.5} justifyContent="center">

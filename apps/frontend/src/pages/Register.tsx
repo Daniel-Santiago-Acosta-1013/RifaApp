@@ -11,6 +11,7 @@ import {
 import {
   Box,
   Button,
+  CircularProgress,
   Container,
   IconButton,
   InputAdornment,
@@ -32,6 +33,7 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,11 +50,22 @@ const Register = () => {
       setError("La contrasena debe tener al menos 6 caracteres.");
       return;
     }
-    const success = await register(name, email, password);
-    if (success) {
-      navigate("/");
-    } else {
-      setError("El correo ya esta registrado.");
+    setIsSubmitting(true);
+    try {
+      const result = await register(name, email, password);
+      if (result.success) {
+        navigate("/");
+        return;
+      }
+      if (result.error?.status === 409) {
+        setError("El correo ya esta registrado.");
+      } else if (result.error?.status === 0 || !result.error?.status) {
+        setError(result.error?.message || "Error de conexion. Intenta de nuevo.");
+      } else {
+        setError(result.error?.message || "Error del servidor. Intenta mas tarde.");
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -181,10 +194,11 @@ const Register = () => {
                 variant="contained"
                 size="large"
                 fullWidth
-                startIcon={<PersonAdd />}
+                disabled={isSubmitting}
+                startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <PersonAdd />}
                 sx={{ py: 1.5, borderRadius: 12 }}
               >
-                Crear cuenta
+                {isSubmitting ? "Creando cuenta..." : "Crear cuenta"}
               </Button>
 
               <Stack direction="row" spacing={0.5} justifyContent="center">

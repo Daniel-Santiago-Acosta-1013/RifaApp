@@ -1,3 +1,5 @@
+data "aws_region" "current" {}
+
 resource "aws_security_group" "client" {
   name   = "${var.name_prefix}-db-client"
   vpc_id = var.vpc_id
@@ -32,6 +34,38 @@ resource "aws_security_group" "db" {
   }
 }
 
+resource "aws_security_group" "secretsmanager_endpoint" {
+  name   = "${var.name_prefix}-secretsmanager-endpoint"
+  vpc_id = var.vpc_id
+  tags   = merge(var.tags, { Name = "${var.name_prefix}-secretsmanager-endpoint-sg" })
+
+  ingress {
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.client.id]
+    description     = "Allow Lambda clients to reach Secrets Manager endpoint"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_vpc_endpoint" "secretsmanager" {
+  vpc_id              = var.vpc_id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.secretsmanager"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = var.private_subnet_ids
+  security_group_ids  = [aws_security_group.secretsmanager_endpoint.id]
+  private_dns_enabled = true
+
+  tags = merge(var.tags, { Name = "${var.name_prefix}-secretsmanager-endpoint" })
+}
+
 resource "aws_db_subnet_group" "db" {
   name       = "${var.name_prefix}-db-subnets"
   subnet_ids = var.private_subnet_ids
@@ -39,23 +73,23 @@ resource "aws_db_subnet_group" "db" {
 }
 
 resource "aws_rds_cluster" "db" {
-  cluster_identifier        = "${var.name_prefix}-aurora"
-  engine                    = var.db_engine
-  engine_version            = var.db_engine_version
-  database_name             = var.db_name
-  master_username           = var.db_username
+  cluster_identifier          = "${var.name_prefix}-aurora"
+  engine                      = var.db_engine
+  engine_version              = var.db_engine_version
+  database_name               = var.db_name
+  master_username             = var.db_username
   manage_master_user_password = true
-  snapshot_identifier       = var.db_snapshot_identifier
-  port                      = var.db_port
-  vpc_security_group_ids    = [aws_security_group.db.id]
-  db_subnet_group_name      = aws_db_subnet_group.db.name
-  backup_retention_period   = var.db_backup_retention
-  storage_encrypted         = true
-  deletion_protection       = var.db_deletion_protection
-  skip_final_snapshot       = var.db_skip_final_snapshot
-  apply_immediately         = var.db_apply_immediately
-  copy_tags_to_snapshot     = true
-  tags                      = var.tags
+  snapshot_identifier         = var.db_snapshot_identifier
+  port                        = var.db_port
+  vpc_security_group_ids      = [aws_security_group.db.id]
+  db_subnet_group_name        = aws_db_subnet_group.db.name
+  backup_retention_period     = var.db_backup_retention
+  storage_encrypted           = true
+  deletion_protection         = var.db_deletion_protection
+  skip_final_snapshot         = var.db_skip_final_snapshot
+  apply_immediately           = var.db_apply_immediately
+  copy_tags_to_snapshot       = true
+  tags                        = var.tags
 }
 
 resource "aws_rds_cluster_instance" "writer" {

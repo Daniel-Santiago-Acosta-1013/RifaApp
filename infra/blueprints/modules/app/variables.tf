@@ -104,8 +104,9 @@ variable "db_apply_immediately" {
 }
 
 variable "lambda_runtime" {
-  type    = string
-  default = "python3.11"
+  description = "Lambda runtime"
+  type        = string
+  default     = "python3.14"
 }
 
 variable "lambda_read_handler" {

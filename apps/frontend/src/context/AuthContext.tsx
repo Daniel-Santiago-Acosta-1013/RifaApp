@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 
-import { loginUser, registerUser } from "../api/client";
+import { ApiError, loginUser, registerUser } from "../api/client";
 import type { User } from "../types";
 
 const STORAGE_KEY = "rifaapp_user";
@@ -25,10 +25,15 @@ const persistUser = (user: User | null) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
 };
 
+export type AuthError = {
+  message: string;
+  status?: number;
+};
+
 type AuthContextValue = {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: AuthError }>;
+  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: AuthError }>;
   logout: () => void;
 };
 
@@ -42,9 +47,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await loginUser({ email, password });
       setUser(response);
       persistUser(response);
-      return true;
-    } catch {
-      return false;
+      return { success: true };
+    } catch (err) {
+      if (err instanceof ApiError) {
+        return { success: false, error: { message: err.message, status: err.status } };
+      }
+      return { success: false, error: { message: "Error de conexion. Intenta de nuevo.", status: 0 } };
     }
   };
 
@@ -53,9 +61,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await registerUser({ name, email, password });
       setUser(response);
       persistUser(response);
-      return true;
-    } catch {
-      return false;
+      return { success: true };
+    } catch (err) {
+      if (err instanceof ApiError) {
+        return { success: false, error: { message: err.message, status: err.status } };
+      }
+      return { success: false, error: { message: "Error de conexion. Intenta de nuevo.", status: 0 } };
     }
   };
 

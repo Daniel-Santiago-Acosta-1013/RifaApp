@@ -50,6 +50,8 @@ const parseError = async (response: Response): Promise<string> => {
   return text || response.statusText || "Request failed";
 };
 
+const REQUEST_TIMEOUT_MS = 10000;
+
 const request = async <T>(
   baseUrl: string,
   path: string,
@@ -60,17 +62,33 @@ const request = async <T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...options,
-    headers,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const message = await parseError(response);
-    throw new ApiError(message || "Request failed", response.status);
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const message = await parseError(response);
+      throw new ApiError(message || "Request failed", response.status);
+    }
+
+    return response.json() as Promise<T>;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof ApiError) {
+      throw err;
+    }
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new ApiError("La solicitud tardó demasiado. Intenta de nuevo.", 0);
+    }
+    throw new ApiError("Error de conexion. Verifica tu red e intenta de nuevo.", 0);
   }
-
-  return response.json() as Promise<T>;
 };
 
 export const listRaffles = (status?: string) => {
