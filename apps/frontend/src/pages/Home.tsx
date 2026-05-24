@@ -304,7 +304,13 @@ const Home = () => {
         <Fab
           color="primary"
           aria-label="Crear rifa"
-          sx={{ position: "fixed", bottom: 24, right: 24, boxShadow: "0 8px 32px rgba(243,107,79,0.3)" }}
+          sx={{
+            display: { xs: "none", sm: "inline-flex" },
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            boxShadow: "0 8px 32px rgba(243,107,79,0.3)",
+          }}
           href="/create"
         >
           <Add />

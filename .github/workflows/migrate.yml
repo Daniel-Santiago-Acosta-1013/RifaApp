@@ -121,9 +121,9 @@ jobs:
           DB_PORT: ${{ steps.db.outputs.port }}
           DB_NAME: ${{ steps.db.outputs.name }}
           DB_USER: ${{ steps.db.outputs.user }}
-          DB_PASSWORD: ${{ steps.secret.outputs.db_password }}
-          SQITCH_TARGET: "db:pg://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+          PGPASSWORD: ${{ steps.secret.outputs.db_password }}
         run: |
           echo "Running sqitch ${{ inputs.target }}..."
           cd rifaapp/db
+          SQITCH_TARGET="db:pg://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
           sqitch ${{ inputs.target }} "${SQITCH_TARGET}"
