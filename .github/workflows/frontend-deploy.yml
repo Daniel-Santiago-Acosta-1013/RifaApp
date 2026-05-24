@@ -7,7 +7,6 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'dev' }}
   TF_VERSION: '1.5.7'
   TG_VERSION: '0.96.1'
   TF_IN_AUTOMATION: "true"
@@ -52,10 +51,10 @@ jobs:
         id: config
         run: |
           read_url=$(aws ssm get-parameter \
-            --name "/rifaapp/${ENVIRONMENT}/api-read-url" \
+            --name "/rifaapp/dev/api-read-url" \
             --query "Parameter.Value" --output text)
           write_url=$(aws ssm get-parameter \
-            --name "/rifaapp/${ENVIRONMENT}/api-write-url" \
+            --name "/rifaapp/dev/api-write-url" \
             --query "Parameter.Value" --output text)
 
           if [ -z "$read_url" ] || [ -z "$write_url" ]; then
