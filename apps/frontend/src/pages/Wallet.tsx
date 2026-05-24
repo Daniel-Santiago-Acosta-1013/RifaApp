@@ -37,7 +37,7 @@ const WalletPage = () => {
         subtitle="Recarga saldo cuando quieras, sin pasarelas reales."
       />
 
-      <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 4 }}>
+      <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 3 }}>
         <Stack spacing={3}>
           <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3 }}>
             <Typography variant="caption" color="text.secondary">

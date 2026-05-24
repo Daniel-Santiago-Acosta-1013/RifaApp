@@ -48,7 +48,7 @@ const Profile = () => {
           <Paper
             sx={{
               p: { xs: 3, md: 4 },
-              borderRadius: 4,
+              borderRadius: 3,
               background: "linear-gradient(135deg, rgba(255,252,248,0.98), rgba(255,248,240,0.95))",
               border: "1px solid rgba(239,231,220,0.8)",
             }}

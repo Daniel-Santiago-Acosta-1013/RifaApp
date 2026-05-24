@@ -50,7 +50,7 @@ const theme = createTheme({
     },
   },
   shape: {
-    borderRadius: 20,
+    borderRadius: 8,
   },
   typography: {
     fontFamily: '"Manrope", "Helvetica", "Arial", sans-serif',
@@ -183,7 +183,7 @@ const theme = createTheme({
           transition: "box-shadow 0.3s ease, transform 0.3s ease",
         },
         rounded: {
-          borderRadius: 20,
+          borderRadius: 16,
         },
         outlined: {
           borderColor: "#EFE7DC",
@@ -196,7 +196,7 @@ const theme = createTheme({
         root: {
           border: "1px solid #EFE7DC",
           boxShadow: "0 8px 32px rgba(18, 22, 33, 0.06)",
-          borderRadius: 20,
+          borderRadius: 16,
           transition: "transform 0.3s ease, box-shadow 0.3s ease",
           "&:hover": {
             transform: "translateY(-4px)",

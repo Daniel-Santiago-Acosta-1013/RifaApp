@@ -1,11 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
-  Add,
   Close,
   Edit,
   EmojiEvents,
-  Remove,
   Save,
   Timer,
   CheckCircle,
@@ -27,72 +25,14 @@ import {
   Stack,
   TextField,
   Typography,
-  useTheme,
 } from "@mui/material";
 
+import { getRaffle, getRaffleNumbers } from "../api/client";
 import NumberGrid from "../components/NumberGrid";
 import PageHeader from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { type Raffle, type RaffleNumber } from "../types";
 import { formatCurrency, formatDate, statusChipColor } from "../utils";
-
-const demoRaffles: Record<string, Raffle> = {
-  "1": {
-    id: "1",
-    title: "Celular Samsung Galaxy S24",
-    description: "Rifa semanal con un celular nuevo.",
-    ticket_price: "5000",
-    currency: "COP",
-    total_tickets: 100,
-    tickets_sold: 42,
-    tickets_reserved: 5,
-    status: "active",
-    draw_at: new Date(Date.now() + 86400000 * 5).toISOString(),
-    number_start: 0,
-    number_end: 99,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  "2": {
-    id: "2",
-    title: "Nintendo Switch",
-    description: "Rifa de consola de videojuegos.",
-    ticket_price: "2000",
-    currency: "COP",
-    total_tickets: 500,
-    tickets_sold: 500,
-    tickets_reserved: 0,
-    status: "completed",
-    draw_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    number_start: 0,
-    number_end: 499,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  "3": {
-    id: "3",
-    title: "Bonos Netflix 1 año",
-    description: "Rifa con suscripción anual.",
-    ticket_price: "1000",
-    currency: "COP",
-    total_tickets: 200,
-    tickets_sold: 15,
-    tickets_reserved: 3,
-    status: "active",
-    draw_at: new Date(Date.now() + 86400000 * 12).toISOString(),
-    number_start: 0,
-    number_end: 199,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-};
-
-const generateNumbers = (total: number): RaffleNumber[] =>
-  Array.from({ length: total }, (_, i) => ({
-    number: i,
-    label: String(i).padStart(total > 100 ? 3 : 2, "0"),
-    status: (["available", "reserved", "sold"] as RaffleNumber["status"][])[Math.floor(Math.random() * 3)],
-  }));
 
 const InfoRow = ({ icon, label, value, color = "text.secondary" }: { icon: React.ReactNode; label: string; value: string | number; color?: string }) => (
   <Stack direction="row" spacing={1.5} alignItems="center">
@@ -120,36 +60,71 @@ const statusLabels: Record<string, string> = {
 };
 
 const RaffleDetail = () => {
-  const { id } = useParams<{ id: string }>();
+  const { raffleId } = useParams<{ raffleId: string }>();
   const { user } = useAuth();
-  const theme = useTheme();
   const isLoggedIn = !!user;
 
-  const raffle = demoRaffles[id || ""];
-  const [numbers] = useState<RaffleNumber[]>(
-    raffle ? generateNumbers(raffle.total_tickets) : [],
-  );
+  const [raffle, setRaffle] = useState<Raffle | null>(null);
+  const [numbers, setNumbers] = useState<RaffleNumber[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([]);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
-    title: raffle?.title || "",
-    description: raffle?.description || "",
-    ticket_price: raffle?.ticket_price ? parseFloat(raffle.ticket_price) : 0,
-    total_tickets: raffle?.total_tickets || 0,
-    draw_at: raffle?.draw_at
-      ? new Date(raffle.draw_at).toISOString().split("T")[0]
-      : "",
+    title: "",
+    description: "",
+    ticket_price: 0,
+    total_tickets: 0,
+    draw_at: "",
   });
   const [showBuyDialog, setShowBuyDialog] = useState(false);
 
-  if (!raffle) {
+  useEffect(() => {
+    if (!raffleId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    Promise.all([
+      getRaffle(raffleId),
+      getRaffleNumbers(raffleId),
+    ])
+      .then(([raffleData, numbersData]) => {
+        setRaffle(raffleData);
+        setNumbers(numbersData.numbers);
+        setEditForm({
+          title: raffleData.title || "",
+          description: raffleData.description || "",
+          ticket_price: raffleData.ticket_price ? parseFloat(String(raffleData.ticket_price)) : 0,
+          total_tickets: raffleData.total_tickets || 0,
+          draw_at: raffleData.draw_at ? new Date(raffleData.draw_at).toISOString().split("T")[0] : "",
+        });
+        setError("");
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Error al cargar la rifa");
+      })
+      .finally(() => setLoading(false));
+  }, [raffleId]);
+
+  if (loading) {
+    return (
+      <Container maxWidth="md" sx={{ py: 8, textAlign: "center" }}>
+        <Typography variant="body2" color="text.secondary">
+          Cargando rifa...
+        </Typography>
+      </Container>
+    );
+  }
+
+  if (error || !raffle) {
     return (
       <Container maxWidth="md" sx={{ py: 8, textAlign: "center" }}>
         <Typography variant="h4" sx={{ mb: 1 }}>
           Rifa no encontrada
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          La rifa que buscas no existe.
+          {error || "La rifa que buscas no existe."}
         </Typography>
       </Container>
     );
@@ -157,7 +132,7 @@ const RaffleDetail = () => {
 
   const progress = (raffle.tickets_sold / raffle.total_tickets) * 100;
   const isHot = progress >= 80 && raffle.status === "active";
-  const totalPrice = selectedNumbers.length * parseFloat(raffle.ticket_price);
+  const totalPrice = selectedNumbers.length * parseFloat(String(raffle.ticket_price));
 
   const toggleNumber = (num: number) => {
     setSelectedNumbers((prev) =>
@@ -184,7 +159,7 @@ const RaffleDetail = () => {
           <Paper
             sx={{
               p: { xs: 3, md: 5 },
-              borderRadius: 4,
+              borderRadius: 3,
               background: isHot
                 ? "linear-gradient(135deg, rgba(255,252,248,0.98), rgba(255,243,236,0.8))"
                 : "linear-gradient(135deg, rgba(255,252,248,0.98), rgba(248,245,240,0.8))",
@@ -200,7 +175,7 @@ const RaffleDetail = () => {
                   sx={{
                     width: 64,
                     height: 64,
-                    borderRadius: 4,
+                    borderRadius: 3,
                     display: "grid",
                     placeItems: "center",
                     flexShrink: 0,
