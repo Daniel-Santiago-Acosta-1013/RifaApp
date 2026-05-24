@@ -91,6 +91,49 @@ jobs:
         run: |
           terragrunt --non-interactive plan
 
+      - name: Cleanup orphaned AWS resources in project VPC
+        if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
+        run: |
+          PROJECT_NAME="${{ vars.PROJECT_NAME || 'rifaapp' }}"
+          ENVIRONMENT="${{ vars.ENVIRONMENT || 'dev' }}"
+          VPC_NAME="${PROJECT_NAME}-${ENVIRONMENT}-vpc"
+
+          echo "Looking up VPC by tag Name=$VPC_NAME..."
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:Name,Values=$VPC_NAME" \
+            --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo "")
+
+          if [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ]; then
+            echo "Found project VPC: $VPC_ID"
+
+            echo "Deleting Load Balancers in VPC $VPC_ID..."
+            for arn in $(aws elbv2 describe-load-balancers \
+              --query "LoadBalancers[?VpcId=='$VPC_ID'].LoadBalancerArn" --output text 2>/dev/null); do
+              echo "  Deleting LB $arn"
+              aws elbv2 delete-load-balancer --load-balancer-arn "$arn" || true
+            done
+
+            echo "Deleting Target Groups in VPC $VPC_ID..."
+            for arn in $(aws elbv2 describe-target-groups \
+              --query "TargetGroups[?VpcId=='$VPC_ID'].TargetGroupArn" --output text 2>/dev/null); do
+              echo "  Deleting TG $arn"
+              aws elbv2 delete-target-group --target-group-arn "$arn" || true
+            done
+
+            echo "Deleting available ENIs in VPC $VPC_ID..."
+            for eni in $(aws ec2 describe-network-interfaces \
+              --filters "Name=vpc-id,Values=$VPC_ID" \
+              --query 'NetworkInterfaces[?Status==`available`].NetworkInterfaceId' --output text 2>/dev/null); do
+              echo "  Deleting ENI $eni"
+              aws ec2 delete-network-interface --network-interface-id "$eni" || true
+            done
+
+            echo "Waiting 30s for AWS to finish detaching dependent resources..."
+            sleep 30
+          else
+            echo "No project VPC found with tag Name=$VPC_NAME. Skipping orphaned resource cleanup."
+          fi
+
       - name: Terragrunt destroy all (live)
         if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
         working-directory: infra/hcl/live
