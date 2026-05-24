@@ -27,7 +27,6 @@ lambda_dist/
 **/.terraform/
 **/.terraform.lock.hcl
 **/terraform.tfstate*
-**/backend.tf
 **/provider.tf
 .terragrunt-cache/
 terraform.plan
