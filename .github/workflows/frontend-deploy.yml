@@ -2,18 +2,12 @@ name: Deploy Frontend
 
 on:
   workflow_dispatch:
-    inputs:
-      tag_name:
-        description: "Tag a crear despues del deploy (formato: vX.Y.Z)"
-        required: true
-        type: string
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  VITE_API_READ_BASE_URL: ${{ vars.VITE_API_READ_BASE_URL }}
-  VITE_API_WRITE_BASE_URL: ${{ vars.VITE_API_WRITE_BASE_URL }}
+  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'dev' }}
   TF_VERSION: '1.5.7'
   TG_VERSION: '0.96.1'
   TF_IN_AUTOMATION: "true"
@@ -29,37 +23,11 @@ jobs:
     name: Deploy frontend to S3 + CloudFront
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout monorepo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Validate configuration
-        run: |
-          if [ -z "$VITE_API_READ_BASE_URL" ]; then
-            echo "VITE_API_READ_BASE_URL is not set" >&2
-            exit 1
-          fi
-          if [ -z "$VITE_API_WRITE_BASE_URL" ]; then
-            echo "VITE_API_WRITE_BASE_URL is not set" >&2
-            exit 1
-          fi
-          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-            echo "AWS credentials are not set" >&2
-            exit 1
-          fi
-          if ! [[ "${{ inputs.tag_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "tag_name must follow vX.Y.Z format (example: v1.2.3)" >&2
-            exit 1
-          fi
-          git fetch --tags
-          if git rev-parse "${{ inputs.tag_name }}" >/dev/null 2>&1; then
-            echo "Tag already exists: ${{ inputs.tag_name }}" >&2
-            exit 1
-          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -79,6 +47,25 @@ jobs:
           aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Load frontend config from Parameter Store
+        id: config
+        run: |
+          read_url=$(aws ssm get-parameter \
+            --name "/rifaapp/${ENVIRONMENT}/api-read-url" \
+            --query "Parameter.Value" --output text)
+          write_url=$(aws ssm get-parameter \
+            --name "/rifaapp/${ENVIRONMENT}/api-write-url" \
+            --query "Parameter.Value" --output text)
+
+          if [ -z "$read_url" ] || [ -z "$write_url" ]; then
+            echo "VITE_API_READ_BASE_URL or VITE_API_WRITE_BASE_URL missing in Parameter Store" >&2
+            exit 1
+          fi
+
+          echo "read_url=$read_url" >> "$GITHUB_OUTPUT"
+          echo "write_url=$write_url" >> "$GITHUB_OUTPUT"
+          echo "Config loaded from Parameter Store"
 
       - name: Apply frontend infra
         working-directory: infra/terraform/envs/frontend
@@ -117,6 +104,9 @@ jobs:
         run: npm install
 
       - name: Build
+        env:
+          VITE_API_READ_BASE_URL: ${{ steps.config.outputs.read_url }}
+          VITE_API_WRITE_BASE_URL: ${{ steps.config.outputs.write_url }}
         working-directory: apps/frontend
         run: npm run build
 
@@ -130,27 +120,3 @@ jobs:
         env:
           CLOUDFRONT_DISTRIBUTION_ID: ${{ steps.frontend.outputs.distribution_id }}
         run: aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"
-
-      - name: Create git tag
-        if: success()
-        env:
-          TAG_NAME: ${{ inputs.tag_name }}
-          TAGGER_EMAIL: ${{ vars.TAGGER_EMAIL }}
-        run: |
-          set -euo pipefail
-          if [ -z "$TAG_NAME" ]; then
-            echo "tag_name input is required." >&2
-            exit 1
-          fi
-          if ! [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "tag_name must follow vX.Y.Z format (example: v1.2.3)" >&2
-            exit 1
-          fi
-          if [ -z "$TAGGER_EMAIL" ]; then
-            echo "TAGGER_EMAIL repo variable is not set." >&2
-            exit 1
-          fi
-          git config user.email "$TAGGER_EMAIL"
-          git config user.name "${GITHUB_ACTOR}"
-          git tag -a "$TAG_NAME" -m "Deploy $TAG_NAME"
-          git push origin "$TAG_NAME"
