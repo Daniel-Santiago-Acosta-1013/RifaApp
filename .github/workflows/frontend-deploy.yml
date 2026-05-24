@@ -1,0 +1,148 @@
+name: Deploy Frontend
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag a crear despues del deploy (formato: vX.Y.Z)"
+        required: true
+        type: string
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  VITE_API_READ_BASE_URL: ${{ vars.VITE_API_READ_BASE_URL }}
+  VITE_API_WRITE_BASE_URL: ${{ vars.VITE_API_WRITE_BASE_URL }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TG_NON_INTERACTIVE: "true"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate configuration
+        run: |
+          if [ -z "$VITE_API_READ_BASE_URL" ]; then
+            echo "VITE_API_READ_BASE_URL is not set" >&2
+            exit 1
+          fi
+          if [ -z "$VITE_API_WRITE_BASE_URL" ]; then
+            echo "VITE_API_WRITE_BASE_URL is not set" >&2
+            exit 1
+          fi
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "AWS credentials are not set" >&2
+            exit 1
+          fi
+          if ! [[ "${{ inputs.tag_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "tag_name must follow vX.Y.Z format (example: v1.2.3)" >&2
+            exit 1
+          fi
+          git fetch --tags
+          if git rev-parse "${{ inputs.tag_name }}" >/dev/null 2>&1; then
+            echo "Tag already exists: ${{ inputs.tag_name }}" >&2
+            exit 1
+          fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Install Terragrunt
+        run: |
+          TERRAGRUNT_VERSION="0.96.1"
+          curl -sSL -o terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64"
+          chmod +x terragrunt
+          sudo mv terragrunt /usr/local/bin/terragrunt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Apply frontend infra (Terraform)
+        working-directory: infra/hcl/envs/frontend
+        run: terragrunt apply -auto-approve
+
+      - name: Read frontend outputs
+        id: frontend
+        working-directory: infra/hcl/envs/frontend
+        run: |
+          terragrunt output -json > /tmp/frontend_outputs.json
+          python3 - <<'PY'
+          import json
+          import os
+
+          with open("/tmp/frontend_outputs.json", "r", encoding="utf-8") as handle:
+              data = json.load(handle)
+
+          bucket = data.get("frontend_bucket_name", {}).get("value", "")
+          distribution = data.get("frontend_distribution_id", {}).get("value", "")
+
+          if not bucket or not distribution:
+              raise SystemExit("frontend outputs are missing")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"bucket={bucket}\n")
+              handle.write(f"distribution_id={distribution}\n")
+          PY
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        working-directory: apps/frontend
+        run: npm install
+
+      - name: Build
+        working-directory: apps/frontend
+        run: npm run build
+
+      - name: Upload to S3
+        env:
+          FRONTEND_BUCKET: ${{ steps.frontend.outputs.bucket }}
+        working-directory: apps/frontend
+        run: aws s3 sync dist "s3://$FRONTEND_BUCKET" --delete
+
+      - name: Invalidate CloudFront
+        env:
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ steps.frontend.outputs.distribution_id }}
+        run: aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"
+
+      - name: Create git tag
+        if: success()
+        env:
+          TAG_NAME: ${{ inputs.tag_name }}
+          TAGGER_EMAIL: ${{ vars.TAGGER_EMAIL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TAG_NAME" ]; then
+            echo "tag_name input is required." >&2
+            exit 1
+          fi
+          if ! [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "tag_name must follow vX.Y.Z format (example: v1.2.3)" >&2
+            exit 1
+          fi
+          if [ -z "$TAGGER_EMAIL" ]; then
+            echo "TAGGER_EMAIL repo variable is not set." >&2
+            exit 1
+          fi
+          git config user.email "$TAGGER_EMAIL"
+          git config user.name "${GITHUB_ACTOR}"
+          git tag -a "$TAG_NAME" -m "Deploy $TAG_NAME"
+          git push origin "$TAG_NAME"

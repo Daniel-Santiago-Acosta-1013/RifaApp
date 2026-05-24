@@ -1,0 +1,55 @@
+name: Destroy Infrastructure
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TG_NON_INTERACTIVE: "true"
+  PROJECT_NAME: ${{ vars.PROJECT_NAME || 'rifaapp' }}
+  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'dev' }}
+  STATE_BUCKET_NAME: ${{ vars.STATE_BUCKET_NAME || 'rifaapp-terraform-state-745819688993' }}
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Install Terragrunt
+        run: |
+          TERRAGRUNT_VERSION="0.96.1"
+          curl -sSL -o terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64"
+          chmod +x terragrunt
+          sudo mv terragrunt /usr/local/bin/terragrunt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Destroy frontend
+        working-directory: infra/hcl/envs/frontend
+        run: terragrunt destroy -auto-approve || true
+
+      - name: Destroy live infrastructure
+        working-directory: infra/hcl/live
+        run: terragrunt run-all destroy -auto-approve || true
+
+      - name: Destroy bootstrap (S3 state bucket)
+        working-directory: infra/blueprints/bootstrap
+        run: |
+          terragrunt init
+          terraform destroy -auto-approve -var="state_bucket_name=$STATE_BUCKET_NAME" -var="aws_region=$AWS_REGION" || true

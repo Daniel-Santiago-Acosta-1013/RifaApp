@@ -1,0 +1,6 @@
+aws_region   = "us-east-1"
+project_name = "rifaapp"
+environment  = "dev"
+api_base_path = "rifaapp"
+api_stage_name = "$default"
+db_password  = "change-me"

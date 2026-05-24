@@ -1,0 +1,8 @@
+BEGIN;
+
+DROP TABLE IF EXISTS read.purchases;
+DROP TABLE IF EXISTS read.raffle_numbers;
+DROP TABLE IF EXISTS read.raffles;
+DROP SCHEMA IF EXISTS read;
+
+COMMIT;

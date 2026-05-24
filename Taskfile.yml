@@ -1,0 +1,132 @@
+version: "3"
+
+vars:
+  API_DIR: apps/api
+  FRONTEND_DIR: apps/frontend
+  INFRA_HCL_DIR: infra/hcl
+  INFRA_BLUEPRINTS_DIR: infra/blueprints
+  API_IMAGE: rifaapp-api
+  FRONTEND_IMAGE: rifaapp-frontend
+
+  LOCAL_KUBE_CONTEXT:
+    sh: echo "${KUBE_CONTEXT:-docker-desktop}"
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  build:api:
+    desc: Build artefactos Lambda (read/write)
+    dir: "{{.API_DIR}}"
+    cmds:
+      - ./scripts/build_lambda.sh
+
+  build:frontend:
+    desc: Build del frontend (Vite)
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - npm run build
+
+  dev:api:
+    desc: Levantar API localmente (write en 8000, read en 8001)
+    dir: "{{.API_DIR}}"
+    env:
+      AUTO_MIGRATE: "true"
+    cmds:
+      - |
+        uv run uvicorn rifaapp.write.src.entrypoints.api:app --reload --host 0.0.0.0 --port 8000 &
+        uv run uvicorn rifaapp.read.src.entrypoints.api:app --reload --host 0.0.0.0 --port 8001 &
+        wait
+
+  dev:frontend:
+    desc: Levantar frontend localmente
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - npm run dev
+
+  test:api:
+    desc: Tests unitarios del backend
+    dir: "{{.API_DIR}}"
+    cmds:
+      - uv run python -m pytest
+
+  test:frontend:
+    desc: E2E del frontend con Playwright
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - npm run test:e2e
+
+  lint:frontend:
+    desc: Lint del frontend
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - npm run lint
+
+  deploy:
+    desc: Deploy de Lambda + infra con Terragrunt (envs/dev)
+    dir: "{{.API_DIR}}"
+    cmds:
+      - uv run deploy
+
+  deploy:plan:
+    desc: Plan de deploy de Lambda + infra
+    dir: "{{.API_DIR}}"
+    cmds:
+      - uv run deploy --plan-only
+
+  deploy:lambda-only:
+    desc: Deploy solo de las Lambdas (read/write)
+    dir: "{{.API_DIR}}"
+    cmds:
+      - uv run deploy --lambda-only
+
+  infra:frontend:apply:
+    desc: Aplicar infra del frontend (S3 + CloudFront)
+    dir: "{{.INFRA_HCL_DIR}}"
+    cmds:
+      - terragrunt --working-dir envs/frontend apply
+
+  infra:frontend:plan:
+    desc: Plan de infra del frontend
+    dir: "{{.INFRA_HCL_DIR}}"
+    cmds:
+      - terragrunt --working-dir envs/frontend plan
+
+  infra:live:plan:
+    desc: Plan de toda la infra (live/shared + live/lambdas)
+    dir: "{{.INFRA_HCL_DIR}}"
+    cmds:
+      - terragrunt --working-dir live run-all plan
+
+  infra:live:apply:
+    desc: Aplicar toda la infra (live/shared + live/lambdas)
+    dir: "{{.INFRA_HCL_DIR}}"
+    cmds:
+      - terragrunt --working-dir live run-all apply
+
+  infra:bootstrap:
+    desc: Bootstrap del bucket de estado S3
+    dir: "{{.INFRA_BLUEPRINTS_DIR}}"
+    cmds:
+      - terragrunt --working-dir bootstrap init
+      - |
+        echo "Aplica manualmente con:"
+        echo "terragrunt --working-dir infra/blueprints/bootstrap apply -var='state_bucket_name=<BUCKET>' -var='aws_region=<REGION>'"
+
+  infra:destroy:
+    desc: Destruir toda la infra (live)
+    dir: "{{.INFRA_HCL_DIR}}"
+    prompt: Esto destruira recursos de AWS. Continuar?
+    cmds:
+      - terragrunt --working-dir live run-all destroy
+
+  docker:up:
+    desc: Levantar servicios locales con Docker Compose
+    cmds:
+      - docker compose up --build
+
+  docker:down:
+    desc: Detener servicios locales
+    cmds:
+      - docker compose down

@@ -1,0 +1,7 @@
+%syntax-version=1.0.0
+%project=rifaapp
+
+create_write_schema # write schema/tables
+create_read_schema # read schema/tables
+raffle_owner # add owner_id to raffles and read model
+read_projection_triggers # keep read model in sync from DB triggers

@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE read.raffles DROP COLUMN IF EXISTS owner_id;
+ALTER TABLE write.raffles DROP COLUMN IF EXISTS owner_id;
+
+COMMIT;

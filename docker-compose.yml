@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: rifaapp-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./apps/api/.env.example
+    networks:
+      - rifaapp-network
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    container_name: rifaapp-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - rifaapp-network
+
+networks:
+  rifaapp-network:
+    driver: bridge

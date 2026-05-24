@@ -1,0 +1,261 @@
+{
+  "info": {
+    "name": "RifaApp API (CQRS)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Colecci\u00f3n CQRS separando Queries (read) y Commands (write)."
+  },
+  "item": [
+    {
+      "name": "Queries (Read)",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{read_base_url}}/health"
+          }
+        },
+        {
+          "name": "List Raffles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{read_base_url}}/raffles?status={{status}}",
+              "host": [
+                "{{read_base_url}}"
+              ],
+              "path": [
+                "raffles"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "{{status}}",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Raffle",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{read_base_url}}/raffles/{{raffle_id}}"
+          }
+        },
+        {
+          "name": "Get Raffle Numbers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{read_base_url}}/raffles/{{raffle_id}}/numbers?offset={{offset}}&limit={{limit}}",
+              "host": [
+                "{{read_base_url}}"
+              ],
+              "path": [
+                "raffles",
+                "{{raffle_id}}",
+                "numbers"
+              ],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "{{offset}}",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "{{limit}}",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Purchases",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{read_base_url}}/participants/{{participant_id}}/purchases"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Commands (Write)",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{write_base_url}}/health"
+          }
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"User Demo\",\n  \"email\": \"demo@example.com\",\n  \"password\": \"changeme123\"\n}"
+            },
+            "url": "{{write_base_url}}/auth/register"
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo@example.com\",\n  \"password\": \"changeme123\"\n}"
+            },
+            "url": "{{write_base_url}}/auth/login"
+          }
+        },
+        {
+          "name": "Create Raffle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Rifa Demo\",\n  \"description\": \"Demo\",\n  \"ticket_price\": 10,\n  \"currency\": \"COP\",\n  \"total_tickets\": 50,\n  \"number_start\": 1,\n  \"number_padding\": 3\n}"
+            },
+            "url": "{{write_base_url}}/raffles"
+          }
+        },
+        {
+          "name": "Update Raffle",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{user_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Rifa Actualizada\"\n}"
+            },
+            "url": "{{write_base_url}}/raffles/{{raffle_id}}"
+          }
+        },
+        {
+          "name": "Delete Raffle",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{user_id}}"
+              }
+            ],
+            "url": "{{write_base_url}}/raffles/{{raffle_id}}"
+          }
+        },
+        {
+          "name": "Reserve Numbers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participant\": {\n    \"name\": \"Buyer\",\n    \"email\": \"buyer@example.com\"\n  },\n  \"numbers\": [\n    1,\n    2,\n    3\n  ],\n  \"ttl_minutes\": 10\n}"
+            },
+            "url": "{{write_base_url}}/raffles/{{raffle_id}}/reservations"
+          }
+        },
+        {
+          "name": "Confirm Purchase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservation_id\": \"{{reservation_id}}\",\n  \"participant_id\": \"{{participant_id}}\",\n  \"payment_method\": \"demo\"\n}"
+            },
+            "url": "{{write_base_url}}/raffles/{{raffle_id}}/confirm"
+          }
+        },
+        {
+          "name": "Release Reservation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservation_id\": \"{{reservation_id}}\"\n}"
+            },
+            "url": "{{write_base_url}}/raffles/{{raffle_id}}/release"
+          }
+        },
+        {
+          "name": "Draw Raffle",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{write_base_url}}/raffles/{{raffle_id}}/draw"
+          }
+        },
+        {
+          "name": "Run Migrations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{write_base_url}}/migrations/run"
+          }
+        }
+      ]
+    }
+  ]
+}

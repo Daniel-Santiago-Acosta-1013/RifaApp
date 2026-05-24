@@ -1,0 +1,33 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: rifaapp-local
+
+build:
+  local:
+    push: false
+    useBuildkit: true
+    concurrency: 2
+  tagPolicy:
+    inputDigest: {}
+  artifacts:
+    - image: rifaapp-api
+      context: apps/api
+      docker:
+        dockerfile: Dockerfile
+    - image: rifaapp-frontend
+      context: apps/frontend
+      docker:
+        dockerfile: Dockerfile
+
+portForward:
+  - resourceType: service
+    resourceName: rifaapp-frontend
+    namespace: default
+    port: 80
+    localPort: 8080
+  - resourceType: service
+    resourceName: rifaapp-api
+    namespace: default
+    port: 80
+    localPort: 8000

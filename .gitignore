@@ -1,0 +1,41 @@
+# Dependencias
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.env
+.env.local
+
+# Builds
+dist/
+build/
+lambda_dist/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Kubernetes
+*.kubeconfig
+
+# Terraform / Terragrunt
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate*
+**/backend.tf
+**/provider.tf
+.terragrunt-cache/
+terraform.plan
+
+# AWS
+aws-*.yml
+*.pem
+
+# Playwright
+playwright-report/
+test-results/
