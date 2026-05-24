@@ -89,41 +89,74 @@ jobs:
           name = data.get("db_name", {}).get("value", "rifaapp")
           user = data.get("db_username", {}).get("value", "appuser")
           secret_arn = data.get("db_secret_arn", {}).get("value", "")
+          artifact_bucket = data.get("migration_artifact_bucket", {}).get("value", "")
+          codebuild_project = data.get("migration_codebuild_project_name", {}).get("value", "")
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"endpoint={endpoint}\n")
               f.write(f"port={port}\n")
               f.write(f"name={name}\n")
               f.write(f"user={user}\n")
               f.write(f"secret_arn={secret_arn}\n")
+              f.write(f"artifact_bucket={artifact_bucket}\n")
+              f.write(f"codebuild_project={codebuild_project}\n")
           PY
 
-      - name: Retrieve DB password from Secrets Manager
-        id: secret
+      - name: Package Sqitch migrations
+        id: package
         run: |
-          SECRET_ARN="${{ steps.db.outputs.secret_arn }}"
-          if [ -z "$SECRET_ARN" ]; then
-            echo "ERROR: db_secret_arn is empty. Cannot retrieve password." >&2
+          if [ -z "${{ steps.db.outputs.artifact_bucket }}" ]; then
+            echo "ERROR: migration_artifact_bucket output is empty. Apply infra first." >&2
             exit 1
           fi
-          PASSWORD=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ARN" --query 'SecretString' --output text | python3 -c "import json,sys; print(json.load(sys.stdin)['password'])")
-          echo "db_password=$PASSWORD" >> "$GITHUB_OUTPUT"
+          if [ -z "${{ steps.db.outputs.codebuild_project }}" ]; then
+            echo "ERROR: migration_codebuild_project_name output is empty. Apply infra first." >&2
+            exit 1
+          fi
+          key="migrations/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tar.gz"
+          tar -czf /tmp/rifaapp-sqitch.tar.gz -C apps/api rifaapp/db
+          aws s3 cp /tmp/rifaapp-sqitch.tar.gz "s3://${{ steps.db.outputs.artifact_bucket }}/${key}"
+          echo "source_key=${key}" >> "$GITHUB_OUTPUT"
 
-      - name: Install Sqitch
+      - name: Run migrations in CodeBuild
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libdbd-pg-perl sqitch
-          sqitch --version
+          overrides=$(python3 - <<'PY'
+          import json
+          import os
 
-      - name: Run migrations
-        working-directory: apps/api
+          values = {
+              "MIGRATION_SOURCE_KEY": os.environ["MIGRATION_SOURCE_KEY"],
+              "MIGRATION_COMMAND": os.environ["MIGRATION_COMMAND"],
+          }
+          print(json.dumps([
+              {"name": name, "value": value, "type": "PLAINTEXT"}
+              for name, value in values.items()
+          ]))
+          PY
+          )
+
+          build_id=$(aws codebuild start-build \
+            --project-name "${{ steps.db.outputs.codebuild_project }}" \
+            --environment-variables-override "$overrides" \
+            --query 'build.id' \
+            --output text)
+
+          echo "Started CodeBuild migration: $build_id"
+          while true; do
+            status=$(aws codebuild batch-get-builds --ids "$build_id" --query 'builds[0].buildStatus' --output text)
+            echo "CodeBuild status: $status"
+            case "$status" in
+              SUCCEEDED)
+                exit 0
+                ;;
+              FAILED|FAULT|STOPPED|TIMED_OUT)
+                aws codebuild batch-get-builds --ids "$build_id" --query 'builds[0].logs.deepLink' --output text
+                exit 1
+                ;;
+              *)
+                sleep 10
+                ;;
+            esac
+          done
         env:
-          DB_HOST: ${{ steps.db.outputs.endpoint }}
-          DB_PORT: ${{ steps.db.outputs.port }}
-          DB_NAME: ${{ steps.db.outputs.name }}
-          DB_USER: ${{ steps.db.outputs.user }}
-          PGPASSWORD: ${{ steps.secret.outputs.db_password }}
-        run: |
-          echo "Running sqitch ${{ inputs.target }}..."
-          cd rifaapp/db
-          SQITCH_TARGET="db:pg://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-          sqitch ${{ inputs.target }} "${SQITCH_TARGET}"
+          MIGRATION_SOURCE_KEY: ${{ steps.package.outputs.source_key }}
+          MIGRATION_COMMAND: ${{ inputs.target }}

@@ -22,5 +22,5 @@ inputs = {
   vpc_cidr             = get_env("VPC_CIDR", "10.0.0.0/16")
   public_subnet_cidrs  = split(",", get_env("PUBLIC_SUBNET_CIDRS", "10.0.0.0/24,10.0.1.0/24"))
   private_subnet_cidrs = split(",", get_env("PRIVATE_SUBNET_CIDRS", "10.0.10.0/24,10.0.11.0/24"))
-  enable_nat_gateway   = get_env("ENABLE_NAT_GATEWAY", "false") == "true"
+  enable_nat_gateway   = get_env("ENABLE_NAT_GATEWAY", "true") == "true"
 }

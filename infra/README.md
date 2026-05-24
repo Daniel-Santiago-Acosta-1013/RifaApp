@@ -123,8 +123,8 @@ Configura en GitHub (repo principal):
 
 ## Notas
 - `db_password` se guarda en el estado de Terraform.
-- `enable_nat_gateway` esta en `false` para reducir costos. Activala si Lambda necesita salida a internet.
+- `enable_nat_gateway` esta en `true` en live para que CodeBuild pueda instalar Sqitch desde subnets privadas y ejecutar migraciones contra Aurora.
 - Para eliminar recursos: `terragrunt --working-dir infra/terraform/live run-all destroy`. El bucket de estado se elimina aparte en `infra/blueprints/bootstrap/`.
 - El workflow `destroy.yml` no pide inputs: destruye frontend, backend, lambdas, base de datos y bucket de estado usando las variables del repo (`PROJECT_NAME`, `ENVIRONMENT`, `STATE_BUCKET_NAME`, `BACKEND_REPO`, `BACKEND_REF`).
 - Las migraciones deben ejecutarse con Sqitch. No hay fallback a SQL directo.
-- El workflow de migraciones debe correr en un entorno con conectividad al endpoint privado de Aurora, por ejemplo un runner self-hosted dentro de la VPC.
+- El workflow de migraciones empaqueta `rifaapp/db`, lo sube a S3 y dispara CodeBuild. CodeBuild corre dentro de la VPC con el security group `${PROJECT_NAME}-${ENVIRONMENT}-db-client`, instala Sqitch y aplica las migraciones contra Aurora privada.

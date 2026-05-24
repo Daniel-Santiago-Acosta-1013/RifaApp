@@ -29,3 +29,11 @@ output "client_security_group_id" {
 output "db_security_group_id" {
   value = aws_security_group.db.id
 }
+
+output "migration_artifact_bucket" {
+  value = aws_s3_bucket.migration_artifacts.bucket
+}
+
+output "migration_codebuild_project_name" {
+  value = aws_codebuild_project.migrations.name
+}
