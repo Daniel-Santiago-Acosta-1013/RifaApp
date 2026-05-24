@@ -86,20 +86,20 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Apply lambdas only
-        working-directory: infra/terraform/live
         run: |
           if [ "${{ inputs.lambda_target }}" = "none" ]; then
             echo "lambda_target is none; skipping apply."
             exit 0
           fi
-          if [ "${{ inputs.lambda_target }}" = "read" ]; then
-            terragrunt --non-interactive run --all -- apply -auto-approve \
-              --terragrunt-include-dir "lambdas/rifa-app-read"
-          elif [ "${{ inputs.lambda_target }}" = "write" ]; then
-            terragrunt --non-interactive run --all -- apply -auto-approve \
-              --terragrunt-include-dir "lambdas/rifa-app-write"
-          else
-            terragrunt --non-interactive run --all -- apply -auto-approve \
-              --terragrunt-include-dir "lambdas/rifa-app-read" \
-              --terragrunt-include-dir "lambdas/rifa-app-write"
+          if [ "${{ inputs.lambda_target }}" = "read" ] || [ "${{ inputs.lambda_target }}" = "both" ]; then
+            echo "Applying read lambda..."
+            pushd infra/terraform/live/lambdas/rifa-app-read
+            terragrunt --non-interactive apply -auto-approve
+            popd
+          fi
+          if [ "${{ inputs.lambda_target }}" = "write" ] || [ "${{ inputs.lambda_target }}" = "both" ]; then
+            echo "Applying write lambda..."
+            pushd infra/terraform/live/lambdas/rifa-app-write
+            terragrunt --non-interactive apply -auto-approve
+            popd
           fi
