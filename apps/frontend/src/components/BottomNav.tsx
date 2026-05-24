@@ -1,79 +1,86 @@
-import { NavLink, useLocation } from "react-router-dom";
-import {
-  AccountBalanceWallet,
-  AddCircle,
-  Inventory2,
-  Person,
-  ShoppingBag,
-  SpaceDashboard,
-  TravelExplore,
-} from "@mui/icons-material";
+import { Home, Person, Storefront } from "@mui/icons-material";
 import { BottomNavigation, BottomNavigationAction, Paper, useMediaQuery, useTheme } from "@mui/material";
+import { Link, useLocation } from "react-router-dom";
 
-import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 
 const BottomNav = () => {
-  const { mode } = useApp();
   const { user } = useAuth();
   const location = useLocation();
   const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isLoggedIn = !!user;
 
-  if (!user || isDesktop) {
-    return null;
-  }
-
-  const items =
-    mode === "sell"
-      ? [
-          { to: "/", label: "Panel", icon: <SpaceDashboard /> },
-          { to: "/sell/raffles", label: "Mis rifas", icon: <Inventory2 /> },
-          { to: "/create", label: "Crear", icon: <AddCircle /> },
-          { to: "/profile", label: "Perfil", icon: <Person /> },
-        ]
-      : [
-          { to: "/", label: "Explorar", icon: <TravelExplore /> },
-          { to: "/purchases", label: "Mis compras", icon: <ShoppingBag /> },
-          { to: "/wallet", label: "Saldo", icon: <AccountBalanceWallet /> },
-          { to: "/profile", label: "Perfil", icon: <Person /> },
-        ];
+  if (!isLoggedIn || !isMobile) return null;
 
   return (
     <Paper
-      elevation={6}
+      elevation={0}
       sx={{
         position: "fixed",
-        bottom: 16,
-        left: 16,
-        right: 16,
+        bottom: 12,
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: "calc(100% - 32px)",
+        maxWidth: 420,
+        zIndex: 1300,
         borderRadius: 999,
-        zIndex: theme.zIndex.appBar - 1,
+        background: "rgba(255, 252, 248, 0.92)",
+        backdropFilter: "blur(16px) saturate(180%)",
+        border: "1px solid rgba(239, 231, 220, 0.8)",
+        boxShadow: "0 8px 32px rgba(18, 22, 33, 0.08)",
+        overflow: "hidden",
       }}
     >
       <BottomNavigation
         value={location.pathname}
         showLabels
         sx={{
-          borderRadius: 999,
-          bgcolor: "background.paper",
+          height: 64,
+          backgroundColor: "transparent",
+          "& .MuiBottomNavigationAction-root": {
+            color: "text.secondary",
+            minWidth: 0,
+            py: 1,
+            borderRadius: 999,
+            mx: 0.5,
+            transition: "all 0.2s ease",
+            "&.Mui-selected": {
+              color: "primary.main",
+              backgroundColor: "rgba(243, 107, 79, 0.08)",
+            },
+          },
+          "& .MuiBottomNavigationAction-label": {
+            fontSize: "0.7rem !important",
+            fontWeight: 600,
+            mt: 0.5,
+          },
+          "& .MuiSvgIcon-root": {
+            fontSize: "1.35rem",
+          },
         }}
       >
-        {items.map((item) => (
-          <BottomNavigationAction
-            key={item.to}
-            label={item.label}
-            icon={item.icon}
-            value={item.to}
-            component={NavLink}
-            to={item.to}
-            sx={{
-              "&.Mui-selected": {
-                color: "primary.main",
-              },
-            }}
-          />
-        ))}
+        <BottomNavigationAction
+          label="Inicio"
+          icon={<Home />}
+          value="/"
+          component={Link}
+          to="/"
+        />
+        <BottomNavigationAction
+          label="Mis rifas"
+          icon={<Storefront />}
+          value="/sell/raffles"
+          component={Link}
+          to="/sell/raffles"
+        />
+        <BottomNavigationAction
+          label="Perfil"
+          icon={<Person />}
+          value="/profile"
+          component={Link}
+          to="/profile"
+        />
       </BottomNavigation>
     </Paper>
   );

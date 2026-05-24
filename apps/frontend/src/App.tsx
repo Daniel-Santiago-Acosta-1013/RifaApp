@@ -19,6 +19,8 @@ const App = () => (
     <AuthProvider>
       <AppProvider>
         <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/create" element={<CreateRafflePage />} />
@@ -27,8 +29,6 @@ const App = () => (
             <Route path="/wallet" element={<WalletPage />} />
             <Route path="/sell/raffles" element={<SellRafflesPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>

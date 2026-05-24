@@ -27,8 +27,8 @@ const persistUser = (user: User | null) => {
 
 type AuthContextValue = {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
 };
 
@@ -38,15 +38,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(() => loadStoredUser());
 
   const login = async (email: string, password: string) => {
-    const response = await loginUser({ email, password });
-    setUser(response);
-    persistUser(response);
+    try {
+      const response = await loginUser({ email, password });
+      setUser(response);
+      persistUser(response);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const register = async (name: string, email: string, password: string) => {
-    const response = await registerUser({ name, email, password });
-    setUser(response);
-    persistUser(response);
+    try {
+      const response = await registerUser({ name, email, password });
+      setUser(response);
+      persistUser(response);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const logout = () => {

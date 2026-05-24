@@ -1,7 +1,10 @@
 import os
 import traceback
 
+from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, HTTPException, Request
+
+load_dotenv()
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html

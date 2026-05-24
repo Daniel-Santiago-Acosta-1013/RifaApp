@@ -28,6 +28,16 @@ tasks:
     cmds:
       - npm run build
 
+  dev:db:
+    desc: Levantar PostgreSQL local con Docker Compose
+    cmds:
+      - docker compose up -d db
+
+  dev:db:down:
+    desc: Detener PostgreSQL local
+    cmds:
+      - docker compose down db
+
   dev:api:
     desc: Levantar API localmente (write en 8000, read en 8001)
     dir: "{{.API_DIR}}"

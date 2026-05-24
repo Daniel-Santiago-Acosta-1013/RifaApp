@@ -11,7 +11,15 @@ type PageHeaderProps = {
 const PageHeader = ({ eyebrow, title, subtitle, actions }: PageHeaderProps) => (
   <Stack spacing={1.5}>
     {eyebrow && (
-      <Typography variant="overline" sx={{ letterSpacing: "0.12em", color: "text.secondary" }}>
+      <Typography
+        variant="overline"
+        sx={{
+          letterSpacing: "0.14em",
+          color: "primary.main",
+          fontWeight: 800,
+          fontSize: "0.7rem",
+        }}
+      >
         {eyebrow}
       </Typography>
     )}

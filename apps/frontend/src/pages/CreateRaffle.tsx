@@ -1,347 +1,154 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Celebration, Save } from "@mui/icons-material";
 import {
-  Alert,
   Box,
   Button,
-  Divider,
+  Container,
   Paper,
   Stack,
-  Step,
-  StepLabel,
-  Stepper,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 
-import { createRaffle } from "../api/client";
-import Onboarding from "../components/Onboarding";
 import PageHeader from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
-import { formatMoney } from "../utils/format";
 
-const numberFormats = [
-  { id: "00-99", label: "00 - 99", number_start: 0, number_padding: 2, total_tickets: 100 },
-  { id: "000-999", label: "000 - 999", number_start: 0, number_padding: 3, total_tickets: 1000 },
-  { id: "1-100", label: "1 - 100", number_start: 1, number_padding: null, total_tickets: 100 },
-  { id: "1-1000", label: "1 - 1000", number_start: 1, number_padding: null, total_tickets: 1000 },
-  { id: "custom", label: "Personalizado", number_start: 1, number_padding: null, total_tickets: 50 },
-];
-
-const steps = ["Idea", "Numeros", "Fecha", "Confirmar"];
-
-const CreateRafflePage = () => {
+const CreateRaffle = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const [step, setStep] = useState(1);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [ticketPrice, setTicketPrice] = useState("5000");
-  const [currency, setCurrency] = useState("COP");
-  const [formatId, setFormatId] = useState("00-99");
-  const [totalTickets, setTotalTickets] = useState("100");
-  const [numberStart, setNumberStart] = useState("0");
-  const [numberPadding, setNumberPadding] = useState("2");
-  const [drawAt, setDrawAt] = useState("");
-  const [status, setStatus] = useState("open");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [createdId, setCreatedId] = useState<string | null>(null);
+  const isLoggedIn = !!user;
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    price_per_ticket: "",
+    total_tickets: "",
+    draw_date: "",
+  });
+  const [submitted, setSubmitted] = useState(false);
 
-  if (!user) {
+  if (!isLoggedIn) {
     return (
-      <Onboarding
-        title="Necesitas una cuenta para crear rifas"
-        subtitle="Registra tu perfil para desbloquear la creacion de rifas."
-      />
+      <Container maxWidth="md" sx={{ py: 8, textAlign: "center" }}>
+        <Typography variant="h4" sx={{ mb: 1 }}>
+          Acceso denegado
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Inicia sesion para crear rifas.
+        </Typography>
+      </Container>
     );
   }
 
-  const format = useMemo(() => numberFormats.find((item) => item.id === formatId), [formatId]);
-
-  const handleFormatChange = (nextId: string) => {
-    setFormatId(nextId);
-    const selected = numberFormats.find((item) => item.id === nextId);
-    if (!selected) {
-      return;
-    }
-    setTotalTickets(String(selected.total_tickets));
-    setNumberStart(String(selected.number_start));
-    setNumberPadding(selected.number_padding ? String(selected.number_padding) : "");
-  };
-
-  const totalPreview = useMemo(() => {
-    const price = Number.parseFloat(ticketPrice);
-    const qty = Number.parseInt(totalTickets, 10);
-    if (!Number.isFinite(price) || !Number.isFinite(qty)) {
-      return 0;
-    }
-    return price * qty;
-  }, [ticketPrice, totalTickets]);
-
-  const goNext = () => setStep((prev) => Math.min(prev + 1, 4));
-  const goBack = () => setStep((prev) => Math.max(prev - 1, 1));
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    setError(null);
-    setCreatedId(null);
-    try {
-      const payload = {
-        title: title.trim(),
-        description: description.trim() || undefined,
-        ticket_price: Number(ticketPrice),
-        currency: currency.toUpperCase(),
-        total_tickets: Number(totalTickets),
-        draw_at: drawAt ? new Date(drawAt).toISOString() : undefined,
-        number_start: Number(numberStart),
-        number_padding: numberPadding ? Number(numberPadding) : null,
-        status,
-        owner_id: user.id,
-      };
-      const raffle = await createRaffle(payload);
-      setCreatedId(raffle.id);
-      setStep(4);
-      navigate(`/raffles/${raffle.id}`, { replace: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al crear la rifa");
-    } finally {
-      setLoading(false);
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitted(true);
+    setTimeout(() => setSubmitted(false), 3000);
   };
 
   return (
-    <Stack spacing={4}>
-      <PageHeader
-        eyebrow="Nueva rifa"
-        title="Crea tu rifa paso a paso"
-        subtitle="Define historia, numeros, precio y fecha en minutos."
-      />
+    <Box component="main">
+      <Container maxWidth="sm" sx={{ py: { xs: 3, md: 5 } }}>
+        <Stack spacing={4}>
+          <PageHeader
+            title="Crear rifa"
+            subtitle="Configura los detalles de tu nueva rifa."
+          />
 
-      <Stepper activeStep={step - 1} alternativeLabel>
-        {steps.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
+          <Paper
+            component="form"
+            onSubmit={handleSubmit}
+            sx={{
+              p: { xs: 3, md: 4.5 },
+              borderRadius: 4,
+              background: "linear-gradient(135deg, rgba(255,252,248,0.98), rgba(255,248,240,0.95))",
+              border: "1px solid rgba(239,231,220,0.9)",
+            }}
+          >
+            <Stack spacing={3}>
+              {submitted && (
+                <Box
+                  sx={{
+                    p: 2.5,
+                    borderRadius: 3,
+                    backgroundColor: "rgba(47, 180, 154, 0.08)",
+                    border: "1px solid rgba(47, 180, 154, 0.2)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                  }}
+                >
+                  <Celebration sx={{ color: "secondary.main" }} />
+                  <Typography variant="body2" fontWeight={600} color="secondary.dark">
+                    Rifa creada exitosamente (simulado).
+                  </Typography>
+                </Box>
+              )}
 
-      {step === 1 && (
-        <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 4 }}>
-          <Stack spacing={3}>
-            <TextField
-              label="Titulo"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Ej. Rifa iPhone 15"
-              required
-              fullWidth
-            />
-            <TextField
-              label="Descripcion"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Cuenta por que esta rifa es especial."
-              multiline
-              minRows={4}
-              fullWidth
-            />
-            <Stack direction="row" justifyContent="flex-end">
-              <Button variant="contained" onClick={goNext} disabled={!title.trim()}>
-                Continuar
-              </Button>
-            </Stack>
-          </Stack>
-        </Paper>
-      )}
-
-      {step === 2 && (
-        <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 4 }}>
-          <Stack spacing={3}>
-            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
               <TextField
+                fullWidth
+                label="Titulo de la rifa"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                required
+                placeholder="Ej: iPhone 15 Pro"
+              />
+
+              <TextField
+                fullWidth
+                label="Descripcion"
+                multiline
+                rows={3}
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                required
+                placeholder="Describe el premio y las reglas de la rifa"
+              />
+
+              <TextField
+                fullWidth
                 label="Precio por numero (COP)"
                 type="number"
-                fullWidth
-                value={ticketPrice}
-                onChange={(event) => setTicketPrice(event.target.value)}
-                inputProps={{ min: 1000, step: 500 }}
+                value={formData.price_per_ticket}
+                onChange={(e) => setFormData({ ...formData, price_per_ticket: e.target.value })}
+                required
+                placeholder="5000"
               />
+
               <TextField
-                label="Moneda"
                 fullWidth
-                value={currency}
-                onChange={(event) => setCurrency(event.target.value)}
-                inputProps={{ maxLength: 3 }}
+                label="Cantidad de numeros"
+                type="number"
+                value={formData.total_tickets}
+                onChange={(e) => setFormData({ ...formData, total_tickets: e.target.value })}
+                required
+                placeholder="100"
               />
-            </Stack>
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Formato de numeros
-              </Typography>
-              <ToggleButtonGroup
-                value={formatId}
-                exclusive
-                onChange={(_, value) => value && handleFormatChange(value)}
-                sx={{
-                  flexWrap: "wrap",
-                  gap: 1,
-                  "& .MuiToggleButton-root": {
-                    borderRadius: 999,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    textTransform: "none",
-                    px: 2,
-                  },
-                }}
-              >
-                {numberFormats.map((item) => (
-                  <ToggleButton key={item.id} value={item.id}>
-                    {item.label}
-                  </ToggleButton>
-                ))}
-              </ToggleButtonGroup>
-            </Box>
-            {format?.id === "custom" && (
-              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                <TextField
-                  label="Numero inicial"
-                  type="number"
-                  fullWidth
-                  value={numberStart}
-                  onChange={(event) => setNumberStart(event.target.value)}
-                />
-                <TextField
-                  label="Relleno (digitos)"
-                  type="number"
-                  fullWidth
-                  value={numberPadding}
-                  onChange={(event) => setNumberPadding(event.target.value)}
-                  inputProps={{ min: 1 }}
-                />
-              </Stack>
-            )}
-            <TextField
-              label="Total de numeros"
-              type="number"
-              fullWidth
-              value={totalTickets}
-              onChange={(event) => setTotalTickets(event.target.value)}
-              inputProps={{ min: 1 }}
-            />
-            <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3 }}>
-              <Typography variant="caption" color="text.secondary">
-                Recaudo estimado
-              </Typography>
-              <Typography variant="h5">{formatMoney(totalPreview, currency)}</Typography>
-            </Paper>
-            <Stack direction="row" spacing={2} justifyContent="flex-end">
-              <Button variant="text" onClick={goBack}>
-                Volver
-              </Button>
-              <Button variant="contained" onClick={goNext}>
-                Continuar
-              </Button>
-            </Stack>
-          </Stack>
-        </Paper>
-      )}
 
-      {step === 3 && (
-        <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 4 }}>
-          <Stack spacing={3}>
-            <TextField
-              label="Fecha del sorteo (opcional)"
-              type="datetime-local"
-              value={drawAt}
-              onChange={(event) => setDrawAt(event.target.value)}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Estado inicial
-              </Typography>
-              <ToggleButtonGroup
-                value={status}
-                exclusive
-                onChange={(_, value) => value && setStatus(value)}
-                sx={{
-                  gap: 1,
-                  "& .MuiToggleButton-root": {
-                    borderRadius: 999,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    textTransform: "none",
-                    px: 2,
-                  },
-                }}
-              >
-                {[
-                  { value: "open", label: "Publicar ahora" },
-                  { value: "draft", label: "Guardar borrador" },
-                ].map((item) => (
-                  <ToggleButton key={item.value} value={item.value}>
-                    {item.label}
-                  </ToggleButton>
-                ))}
-              </ToggleButtonGroup>
-            </Box>
-            <Stack direction="row" spacing={2} justifyContent="flex-end">
-              <Button variant="text" onClick={goBack}>
-                Volver
-              </Button>
-              <Button variant="contained" onClick={goNext}>
-                Revisar
-              </Button>
-            </Stack>
-          </Stack>
-        </Paper>
-      )}
+              <TextField
+                fullWidth
+                label="Fecha del sorteo"
+                type="date"
+                value={formData.draw_date}
+                onChange={(e) => setFormData({ ...formData, draw_date: e.target.value })}
+                required
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
 
-      {step === 4 && (
-        <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 4 }}>
-          <Stack spacing={3}>
-            <Typography variant="h5">Resumen final</Typography>
-            <Divider />
-            {[
-              { label: "Titulo", value: title || "Sin titulo" },
-              { label: "Formato", value: format?.label || "Sin formato" },
-              { label: "Precio", value: formatMoney(ticketPrice, currency) },
-              { label: "Total numeros", value: totalTickets },
-              { label: "Sorteo", value: drawAt || "Sin fecha" },
-            ].map((row) => (
-              <Stack key={row.label} direction="row" justifyContent="space-between">
-                <Typography variant="body2" color="text.secondary">
-                  {row.label}
-                </Typography>
-                <Typography variant="subtitle2">{row.value}</Typography>
-              </Stack>
-            ))}
-            {error && <Alert severity="error">{error}</Alert>}
-            {createdId && (
-              <Alert severity="success">
-                Rifa creada con exito.{" "}
-                <Button size="small" href={`/raffles/${createdId}`}>
-                  Ver detalle
-                </Button>
-              </Alert>
-            )}
-            <Stack direction="row" spacing={2} justifyContent="flex-end">
-              <Button variant="text" onClick={goBack} disabled={loading}>
-                Volver
-              </Button>
-              <Button variant="contained" onClick={handleSubmit} disabled={loading}>
-                {loading ? "Creando..." : "Crear rifa"}
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                fullWidth
+                startIcon={<Save />}
+                sx={{ py: 1.5, borderRadius: 14 }}
+              >
+                Crear rifa
               </Button>
             </Stack>
-          </Stack>
-        </Paper>
-      )}
-    </Stack>
+          </Paper>
+        </Stack>
+      </Container>
+    </Box>
   );
 };
 
-export default CreateRafflePage;
+export default CreateRaffle;

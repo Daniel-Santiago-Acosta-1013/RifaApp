@@ -1,618 +1,516 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useState } from "react";
+import { useParams } from "react-router-dom";
 import {
-  Alert,
+  Add,
+  Close,
+  Edit,
+  EmojiEvents,
+  Remove,
+  Save,
+  Timer,
+  CheckCircle,
+  Share,
+  Celebration,
+} from "@mui/icons-material";
+import {
+  Box,
   Button,
   Chip,
-  Divider,
+  Container,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Grid,
+  IconButton,
   LinearProgress,
   Paper,
   Stack,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
+  useTheme,
 } from "@mui/material";
 
-import {
-  confirmPurchase,
-  deleteRaffle,
-  getRaffleNumbers,
-  getRaffle,
-  releaseReservation,
-  reserveNumbers,
-  updateRaffle,
-} from "../api/client";
 import NumberGrid from "../components/NumberGrid";
-import Onboarding from "../components/Onboarding";
-import { useApp } from "../context/AppContext";
+import PageHeader from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
-import type { PurchaseConfirmResponse, RaffleNumber, RaffleUpdate, Raffle, ReservationResponse } from "../types";
-import { formatDate, formatMoney } from "../utils/format";
-import { setParticipantId } from "../utils/participants";
+import { type Raffle, type RaffleNumber } from "../types";
+import { formatCurrency, formatDate, statusChipColor } from "../utils";
 
-const statusColorMap: Record<string, "default" | "success" | "warning" | "info"> = {
-  open: "success",
-  closed: "warning",
-  drawn: "info",
-  draft: "default",
+const demoRaffles: Record<string, Raffle> = {
+  "1": {
+    id: "1",
+    title: "Celular Samsung Galaxy S24",
+    description: "Rifa semanal con un celular nuevo.",
+    ticket_price: "5000",
+    currency: "COP",
+    total_tickets: 100,
+    tickets_sold: 42,
+    tickets_reserved: 5,
+    status: "active",
+    draw_at: new Date(Date.now() + 86400000 * 5).toISOString(),
+    number_start: 0,
+    number_end: 99,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  "2": {
+    id: "2",
+    title: "Nintendo Switch",
+    description: "Rifa de consola de videojuegos.",
+    ticket_price: "2000",
+    currency: "COP",
+    total_tickets: 500,
+    tickets_sold: 500,
+    tickets_reserved: 0,
+    status: "completed",
+    draw_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    number_start: 0,
+    number_end: 499,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  "3": {
+    id: "3",
+    title: "Bonos Netflix 1 año",
+    description: "Rifa con suscripción anual.",
+    ticket_price: "1000",
+    currency: "COP",
+    total_tickets: 200,
+    tickets_sold: 15,
+    tickets_reserved: 3,
+    status: "active",
+    draw_at: new Date(Date.now() + 86400000 * 12).toISOString(),
+    number_start: 0,
+    number_end: 199,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
 };
 
-const RaffleDetailPage = () => {
-  const { raffleId } = useParams();
-  const navigate = useNavigate();
+const generateNumbers = (total: number): RaffleNumber[] =>
+  Array.from({ length: total }, (_, i) => ({
+    number: i,
+    label: String(i).padStart(total > 100 ? 3 : 2, "0"),
+    status: (["available", "reserved", "sold"] as RaffleNumber["status"][])[Math.floor(Math.random() * 3)],
+  }));
+
+const InfoRow = ({ icon, label, value, color = "text.secondary" }: { icon: React.ReactNode; label: string; value: string | number; color?: string }) => (
+  <Stack direction="row" spacing={1.5} alignItems="center">
+    <Box sx={{ color: "text.secondary", display: "flex", alignItems: "center" }}>{icon}</Box>
+    <Typography variant="body2" color="text.secondary">
+      {label}
+    </Typography>
+    <Typography variant="body2" fontWeight={600} color={color}>
+      {value}
+    </Typography>
+  </Stack>
+);
+
+const SectionCard = ({ children, sx }: { children: React.ReactNode; sx?: object }) => (
+  <Paper sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 3, border: "1px solid rgba(239,231,220,0.8)", ...sx }}>
+    {children}
+  </Paper>
+);
+
+const statusLabels: Record<string, string> = {
+  active: "Activa",
+  completed: "Finalizada",
+  cancelled: "Cancelada",
+  draft: "Borrador",
+};
+
+const RaffleDetail = () => {
+  const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const { balance, debit } = useApp();
-  const [raffle, setRaffle] = useState<Raffle | null>(null);
-  const [numbers, setNumbers] = useState<RaffleNumber[]>([]);
+  const theme = useTheme();
+  const isLoggedIn = !!user;
+
+  const raffle = demoRaffles[id || ""];
+  const [numbers] = useState<RaffleNumber[]>(
+    raffle ? generateNumbers(raffle.total_tickets) : [],
+  );
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([]);
-  const [reservation, setReservation] = useState<ReservationResponse | null>(null);
-  const [purchase, setPurchase] = useState<PurchaseConfirmResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [purchaseError, setPurchaseError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editDrawAt, setEditDrawAt] = useState("");
-  const [editStatus, setEditStatus] = useState("open");
-  const [editError, setEditError] = useState<string | null>(null);
-  const [editSaving, setEditSaving] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteInput, setDeleteInput] = useState("");
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: raffle?.title || "",
+    description: raffle?.description || "",
+    ticket_price: raffle?.ticket_price ? parseFloat(raffle.ticket_price) : 0,
+    total_tickets: raffle?.total_tickets || 0,
+    draw_at: raffle?.draw_at
+      ? new Date(raffle.draw_at).toISOString().split("T")[0]
+      : "",
+  });
+  const [showBuyDialog, setShowBuyDialog] = useState(false);
 
-  const toDateTimeInput = (value?: string | null) => {
-    if (!value) {
-      return "";
-    }
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return "";
-    }
-    return date.toISOString().slice(0, 16);
-  };
-
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    if (!raffleId) {
-      setError("Rifa no encontrada");
-      setLoading(false);
-      return;
-    }
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [raffleData, numbersData] = await Promise.all([
-          getRaffle(raffleId),
-          getRaffleNumbers(raffleId),
-        ]);
-        setRaffle(raffleData);
-        setNumbers(numbersData.numbers);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Error al cargar la rifa");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [raffleId, user]);
-
-  useEffect(() => {
-    if (!reservation?.expires_at) {
-      setTimeLeft(null);
-      return;
-    }
-    const interval = window.setInterval(() => {
-      const now = Date.now();
-      const expiry = new Date(reservation.expires_at).getTime();
-      const diff = Math.max(0, expiry - now);
-      if (diff <= 0) {
-        setTimeLeft("00:00");
-        setReservation(null);
-        setSelectedNumbers([]);
-        if (raffleId) {
-          Promise.all([getRaffle(raffleId), getRaffleNumbers(raffleId)]).then(([raffleData, numbersData]) => {
-            setRaffle(raffleData);
-            setNumbers(numbersData.numbers);
-          });
-        }
-        return;
-      }
-      const minutes = Math.floor(diff / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-      setTimeLeft(`${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`);
-    }, 1000);
-    return () => window.clearInterval(interval);
-  }, [reservation, raffleId]);
-
-  const totalSelected = useMemo(() => {
-    const price = raffle ? Number.parseFloat(raffle.ticket_price) : 0;
-    if (!Number.isFinite(price)) {
-      return 0;
-    }
-    return price * selectedNumbers.length;
-  }, [raffle, selectedNumbers.length]);
-
-  const toggleNumber = (value: number) => {
-    if (reservation) {
-      return;
-    }
-    setSelectedNumbers((prev) =>
-      prev.includes(value) ? prev.filter((number) => number !== value) : [...prev, value],
-    );
-  };
-
-  const handleReserve = async () => {
-    if (!raffleId || !user) {
-      return;
-    }
-    if (selectedNumbers.length === 0) {
-      setPurchaseError("Selecciona al menos un numero.");
-      return;
-    }
-    setProcessing(true);
-    setPurchaseError(null);
-    try {
-      const response = await reserveNumbers(raffleId, {
-        participant: { name: user.name, email: user.email },
-        numbers: selectedNumbers,
-        ttl_minutes: 10,
-      });
-      setReservation(response);
-      setParticipantId(user.email, response.participant_id);
-      const [refreshedRaffle, refreshedNumbers] = await Promise.all([
-        getRaffle(raffleId),
-        getRaffleNumbers(raffleId),
-      ]);
-      setRaffle(refreshedRaffle);
-      setNumbers(refreshedNumbers.numbers);
-    } catch (err) {
-      setPurchaseError(err instanceof Error ? err.message : "No se pudo reservar");
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (!raffleId || !reservation) {
-      return;
-    }
-    const total = Number.parseFloat(reservation.total_price);
-    if (!Number.isFinite(total)) {
-      setPurchaseError("Total invalido");
-      return;
-    }
-    if (balance < total) {
-      setPurchaseError("Saldo insuficiente. Recarga saldo demo.");
-      return;
-    }
-    setProcessing(true);
-    setPurchaseError(null);
-    try {
-      const response = await confirmPurchase(raffleId, {
-        reservation_id: reservation.reservation_id,
-        participant_id: reservation.participant_id,
-        payment_method: "demo",
-      });
-      debit(total);
-      setPurchase(response);
-      setReservation(null);
-      setSelectedNumbers([]);
-      const [refreshedRaffle, refreshedNumbers] = await Promise.all([
-        getRaffle(raffleId),
-        getRaffleNumbers(raffleId),
-      ]);
-      setRaffle(refreshedRaffle);
-      setNumbers(refreshedNumbers.numbers);
-    } catch (err) {
-      setPurchaseError(err instanceof Error ? err.message : "No se pudo confirmar");
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleRelease = async () => {
-    if (!raffleId || !reservation) {
-      return;
-    }
-    setProcessing(true);
-    try {
-      await releaseReservation(raffleId, reservation.reservation_id);
-      setReservation(null);
-      setSelectedNumbers([]);
-      const [refreshedRaffle, refreshedNumbers] = await Promise.all([
-        getRaffle(raffleId),
-        getRaffleNumbers(raffleId),
-      ]);
-      setRaffle(refreshedRaffle);
-      setNumbers(refreshedNumbers.numbers);
-    } catch (err) {
-      setPurchaseError(err instanceof Error ? err.message : "No se pudo liberar la reserva");
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const isOwner = Boolean(user && raffle?.owner_id && user.id === raffle.owner_id);
-
-  const startEdit = () => {
-    if (!raffle) {
-      return;
-    }
-    setEditTitle(raffle.title);
-    setEditDescription(raffle.description ?? "");
-    setEditDrawAt(toDateTimeInput(raffle.draw_at));
-    setEditStatus(raffle.status);
-    setEditError(null);
-    setEditing(true);
-  };
-
-  const cancelEdit = () => {
-    setEditing(false);
-    setEditError(null);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!raffle || !user) {
-      return;
-    }
-    const trimmedTitle = editTitle.trim();
-    if (!trimmedTitle) {
-      setEditError("El titulo es obligatorio.");
-      return;
-    }
-    const payload: RaffleUpdate = {};
-    if (trimmedTitle !== raffle.title) {
-      payload.title = trimmedTitle;
-    }
-    const trimmedDescription = editDescription.trim();
-    const currentDescription = raffle.description ?? "";
-    if (trimmedDescription !== currentDescription) {
-      payload.description = trimmedDescription ? trimmedDescription : null;
-    }
-    const currentDrawAt = toDateTimeInput(raffle.draw_at);
-    if (editDrawAt !== currentDrawAt) {
-      payload.draw_at = editDrawAt ? new Date(editDrawAt).toISOString() : null;
-    }
-    if (editStatus && editStatus !== raffle.status) {
-      payload.status = editStatus;
-    }
-    if (Object.keys(payload).length === 0) {
-      setEditing(false);
-      return;
-    }
-    setEditSaving(true);
-    setEditError(null);
-    try {
-      const updated = await updateRaffle(raffle.id, payload, user.id);
-      setRaffle(updated);
-      setEditing(false);
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : "No se pudo actualizar la rifa");
-    } finally {
-      setEditSaving(false);
-    }
-  };
-
-  const openDelete = () => {
-    setDeleteInput("");
-    setDeleteError(null);
-    setDeleteOpen(true);
-  };
-
-  const closeDelete = () => {
-    if (!deleting) {
-      setDeleteOpen(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!raffle || !user) {
-      return;
-    }
-    if (deleteInput !== raffle.title) {
-      setDeleteError("Escribe el titulo exacto para confirmar.");
-      return;
-    }
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      await deleteRaffle(raffle.id, user.id);
-      navigate("/sell/raffles", { replace: true });
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "No se pudo eliminar la rifa");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  if (!user) {
+  if (!raffle) {
     return (
-      <Onboarding
-        title="Registra tu cuenta para participar"
-        subtitle="Necesitas iniciar sesion para comprar numeros y ver el detalle de cada rifa."
-      />
-    );
-  }
-
-  if (loading) {
-    return (
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="body2" color="text.secondary">
-          Cargando rifa...
+      <Container maxWidth="md" sx={{ py: 8, textAlign: "center" }}>
+        <Typography variant="h4" sx={{ mb: 1 }}>
+          Rifa no encontrada
         </Typography>
-      </Paper>
+        <Typography variant="body2" color="text.secondary">
+          La rifa que buscas no existe.
+        </Typography>
+      </Container>
     );
   }
 
-  if (error || !raffle) {
-    return <Alert severity="error">{error || "Rifa no encontrada"}</Alert>;
-  }
+  const progress = (raffle.tickets_sold / raffle.total_tickets) * 100;
+  const isHot = progress >= 80 && raffle.status === "active";
+  const totalPrice = selectedNumbers.length * parseFloat(raffle.ticket_price);
 
-  const progress = Math.min(100, (raffle.tickets_sold / raffle.total_tickets) * 100);
-  const isOpen = raffle.status === "open";
+  const toggleNumber = (num: number) => {
+    setSelectedNumbers((prev) =>
+      prev.includes(num) ? prev.filter((n) => n !== num) : [...prev, num],
+    );
+  };
+
+  const handleBuy = () => {
+    setShowBuyDialog(false);
+    setSelectedNumbers([]);
+    alert("Compra simulada exitosa.");
+  };
+
+  const handleSave = () => {
+    setEditing(false);
+    alert("Cambios guardados (simulado).");
+  };
 
   return (
-    <Grid container spacing={3} sx={{ width: "100%" }}>
-      <Grid size={{ xs: 12, md: 5 }}>
-        <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 4 }}>
-          <Stack spacing={2}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Chip label={raffle.status} color={statusColorMap[raffle.status] ?? "default"} size="small" />
-              <Typography variant="subtitle1" color="text.secondary">
-                {formatMoney(raffle.ticket_price, raffle.currency)}
-              </Typography>
-            </Stack>
-            <Typography variant="h4">{raffle.title}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {raffle.description || "Esta rifa espera tu toque creativo."}
-            </Typography>
-            <LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 999 }} />
-            <Stack direction="row" justifyContent="space-between">
-              <Typography variant="caption" color="text.secondary">
-                {raffle.tickets_sold} / {raffle.total_tickets} vendidos
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {Math.round(progress)}%
-              </Typography>
-            </Stack>
-            <Divider />
-            <Grid container spacing={2}>
-              {[
-                { label: "Inicio", value: `#${raffle.number_start}` },
-                { label: "Fin", value: `#${raffle.number_end}` },
-                { label: "Sorteo", value: formatDate(raffle.draw_at) },
-                { label: "Reservados", value: raffle.tickets_reserved },
-              ].map((item) => (
-                <Grid size={6} key={item.label}>
-                  <Typography variant="caption" color="text.secondary">
-                    {item.label}
-                  </Typography>
-                  <Typography variant="subtitle2">{item.value}</Typography>
-                </Grid>
-              ))}
-            </Grid>
-            {isOwner && (
-              <>
-                <Divider />
-                <Stack spacing={2}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Typography variant="subtitle2">Editar rifa</Typography>
-                    {!editing && (
-                      <Button size="small" variant="outlined" onClick={startEdit}>
-                        Editar
-                      </Button>
+    <Box component="main">
+      <Container maxWidth="md" sx={{ py: { xs: 3, md: 5 } }}>
+        <Stack spacing={3}>
+          {/* Header hero */}
+          <Paper
+            sx={{
+              p: { xs: 3, md: 5 },
+              borderRadius: 4,
+              background: isHot
+                ? "linear-gradient(135deg, rgba(255,252,248,0.98), rgba(255,243,236,0.8))"
+                : "linear-gradient(135deg, rgba(255,252,248,0.98), rgba(248,245,240,0.8))",
+              border: "1px solid",
+              borderColor: isHot ? "rgba(243,107,79,0.2)" : "rgba(239,231,220,0.8)",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            <Stack spacing={3}>
+              <Stack direction="row" spacing={2} alignItems="flex-start">
+                <Box
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 4,
+                    display: "grid",
+                    placeItems: "center",
+                    flexShrink: 0,
+                    background: isHot
+                      ? "linear-gradient(135deg, rgba(243,107,79,0.15), rgba(255,176,137,0.3))"
+                      : "linear-gradient(135deg, rgba(47,180,154,0.12), rgba(143,226,211,0.25))",
+                    color: isHot ? "primary.main" : "secondary.main",
+                  }}
+                >
+                  {raffle.status === "completed" ? <Celebration sx={{ fontSize: 32 }} /> : <EmojiEvents sx={{ fontSize: 32 }} />}
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" gap={1}>
+                    <Typography variant="h4">{raffle.title}</Typography>
+                    <Chip
+                      label={statusLabels[raffle.status] || raffle.status}
+                      size="small"
+                      color={statusChipColor(raffle.status)}
+                      sx={{ height: 26 }}
+                    />
+                    {isHot && (
+                      <Chip
+                        label="🔥 Casi llena"
+                        size="small"
+                        sx={{
+                          height: 26,
+                          backgroundColor: "rgba(243,107,79,0.1)",
+                          color: "primary.dark",
+                          border: "1px solid rgba(243,107,79,0.2)",
+                        }}
+                      />
                     )}
                   </Stack>
-                  {editing && (
-                    <>
-                      <TextField
-                        label="Titulo"
-                        value={editTitle}
-                        onChange={(event) => setEditTitle(event.target.value)}
-                        fullWidth
-                      />
-                      <TextField
-                        label="Descripcion"
-                        value={editDescription}
-                        onChange={(event) => setEditDescription(event.target.value)}
-                        multiline
-                        minRows={3}
-                        fullWidth
-                      />
-                      <TextField
-                        label="Fecha del sorteo"
-                        type="datetime-local"
-                        value={editDrawAt}
-                        onChange={(event) => setEditDrawAt(event.target.value)}
-                        InputLabelProps={{ shrink: true }}
-                        fullWidth
-                      />
-                      <ToggleButtonGroup
-                        value={editStatus}
-                        exclusive
-                        onChange={(_, value) => value && setEditStatus(value)}
-                        sx={{
-                          gap: 1,
-                          "& .MuiToggleButton-root": {
-                            borderRadius: 999,
-                            border: "1px solid",
-                            borderColor: "divider",
-                            textTransform: "none",
-                            px: 2,
-                          },
-                        }}
-                      >
-                        {[
-                          { value: "open", label: "Publicada" },
-                          { value: "draft", label: "Borrador" },
-                          { value: "closed", label: "Cerrada" },
-                        ].map((item) => (
-                          <ToggleButton key={item.value} value={item.value}>
-                            {item.label}
-                          </ToggleButton>
-                        ))}
-                      </ToggleButtonGroup>
-                      {editError && <Alert severity="error">{editError}</Alert>}
-                      <Stack direction="row" spacing={2} justifyContent="flex-end">
-                        <Button variant="text" onClick={cancelEdit} disabled={editSaving}>
-                          Cancelar
-                        </Button>
-                        <Button variant="contained" onClick={handleSaveEdit} disabled={editSaving}>
-                          {editSaving ? "Guardando..." : "Guardar cambios"}
-                        </Button>
-                      </Stack>
-                    </>
-                  )}
-                </Stack>
-                <Divider />
-                <Stack spacing={2}>
-                  <Typography variant="subtitle2" color="error">
-                    Eliminar rifa
+                  <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+                    {raffle.description}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Esta accion es permanente y elimina la rifa, sus numeros y compras asociadas.
-                  </Typography>
-                  <Button color="error" variant="outlined" onClick={openDelete}>
-                    Eliminar rifa
-                  </Button>
-                </Stack>
-              </>
-            )}
-            <Button variant="text" color="inherit" href="/">
-              Volver al catalogo
-            </Button>
-          </Stack>
-        </Paper>
-      </Grid>
-
-      <Grid size={{ xs: 12, md: 7 }}>
-        <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 4 }}>
-          <Stack spacing={2}>
-            <Typography variant="h5">Selecciona tus numeros</Typography>
-            {!isOpen && <Alert severity="info">Esta rifa ya no acepta compras.</Alert>}
-            <NumberGrid
-              numbers={numbers}
-              selectedNumbers={selectedNumbers}
-              reservedNumbers={reservation?.numbers}
-              onToggle={toggleNumber}
-              disabled={!isOpen || Boolean(reservation)}
-            />
-            <Stack direction="row" justifyContent="space-between">
-              <Stack>
-                <Typography variant="caption" color="text.secondary">
-                  Seleccionados
-                </Typography>
-                <Typography variant="h6">{selectedNumbers.length}</Typography>
+                </Box>
               </Stack>
-              <Stack alignItems="flex-end">
-                <Typography variant="caption" color="text.secondary">
-                  Total
-                </Typography>
-                <Typography variant="h6">{formatMoney(totalSelected, raffle.currency)}</Typography>
+
+              <Stack spacing={2}>
+                <Stack direction="row" spacing={3} flexWrap="wrap">
+                  <InfoRow
+                    icon={<EmojiEvents fontSize="small" />}
+                    label="Precio:"
+                    value={formatCurrency(raffle.ticket_price, raffle.currency)}
+                    color="primary.main"
+                  />
+                  <InfoRow
+                    icon={<CheckCircle fontSize="small" />}
+                    label="Vendidos:"
+                    value={`${raffle.tickets_sold} / ${raffle.total_tickets}`}
+                  />
+                  <InfoRow
+                    icon={<Timer fontSize="small" />}
+                    label="Sorteo:"
+                    value={formatDate(raffle.draw_at)}
+                  />
+                </Stack>
+
+                <Box sx={{ width: "100%" }}>
+                  <LinearProgress
+                    variant="determinate"
+                    value={progress}
+                    sx={{
+                      height: 10,
+                      borderRadius: 999,
+                      backgroundColor: "rgba(28, 31, 38, 0.06)",
+                      "& .MuiLinearProgress-bar": {
+                        borderRadius: 999,
+                        background: isHot
+                          ? "linear-gradient(90deg, #F36B4F, #FFB089)"
+                          : "linear-gradient(90deg, #2FB49A, #8FE2D3)",
+                      },
+                    }}
+                  />
+                </Box>
               </Stack>
             </Stack>
-            {reservation && (
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Typography variant="subtitle2">Reserva activa</Typography>
-                  <Chip label={timeLeft || "00:00"} color="warning" />
-                </Stack>
-              </Paper>
-            )}
-            {purchaseError && <Alert severity="error">{purchaseError}</Alert>}
-            {!reservation && (
-              <Button variant="contained" onClick={handleReserve} disabled={!isOpen || processing}>
-                {processing ? "Reservando..." : "Reservar numeros"}
+          </Paper>
+
+          {/* Actions */}
+          {isLoggedIn && (
+            <Stack direction="row" spacing={1.5}>
+              <Button
+                variant="outlined"
+                startIcon={<Edit />}
+                onClick={() => setEditing(!editing)}
+                size="large"
+                sx={{ borderRadius: 999 }}
+              >
+                {editing ? "Cancelar edicion" : "Editar rifa"}
               </Button>
-            )}
-            {reservation && !purchase && (
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <Button variant="outlined" onClick={handleRelease} disabled={processing}>
-                  Cancelar reserva
+              {raffle.status === "active" && (
+                <Button variant="contained" size="large" sx={{ borderRadius: 999 }}>
+                  Sortear ganador
                 </Button>
-                <Button variant="contained" onClick={handleConfirm} disabled={processing}>
-                  {processing ? "Confirmando..." : "Confirmar compra"}
-                </Button>
-              </Stack>
-            )}
-            {purchase && (
-              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3 }}>
-                <Stack spacing={2}>
-                  <Typography variant="subtitle1">Compra completada</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Estos numeros quedan guardados para el sorteo.
-                  </Typography>
-                  <Stack direction="row" flexWrap="wrap" spacing={1}>
-                    {purchase.numbers.map((number) => (
-                      <Chip key={number} label={number} />
-                    ))}
-                  </Stack>
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="caption" color="text.secondary">
-                      Total pagado
-                    </Typography>
-                    <Typography variant="subtitle2">
-                      {formatMoney(purchase.total_price, purchase.currency)}
-                    </Typography>
-                  </Stack>
-                  <Button variant="text" href="/purchases">
-                    Ver mis compras
+              )}
+              <Button variant="outlined" startIcon={<Share />} size="large" sx={{ borderRadius: 999, ml: "auto" }}>
+                Compartir
+              </Button>
+            </Stack>
+          )}
+
+          {/* Edit form */}
+          {isLoggedIn && editing && (
+            <SectionCard>
+              <Stack spacing={3}>
+                <Typography variant="h6">Editar rifa</Typography>
+                <TextField
+                  fullWidth
+                  label="Titulo"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                />
+                <TextField
+                  fullWidth
+                  label="Descripcion"
+                  multiline
+                  rows={3}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                />
+                <TextField
+                  fullWidth
+                  label="Precio por numero (COP)"
+                  type="number"
+                  value={editForm.ticket_price}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, ticket_price: Number(e.target.value) })
+                  }
+                />
+                <TextField
+                  fullWidth
+                  label="Total de numeros"
+                  type="number"
+                  value={editForm.total_tickets}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, total_tickets: Number(e.target.value) })
+                  }
+                />
+                <TextField
+                  fullWidth
+                  label="Fecha de sorteo"
+                  type="date"
+                  value={editForm.draw_at}
+                  onChange={(e) => setEditForm({ ...editForm, draw_at: e.target.value })}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <Stack direction="row" spacing={1.5}>
+                  <Button variant="contained" startIcon={<Save />} onClick={handleSave} size="large">
+                    Guardar cambios
+                  </Button>
+                  <Button variant="outlined" onClick={() => setEditing(false)} size="large">
+                    Cancelar
                   </Button>
                 </Stack>
-              </Paper>
-            )}
-          </Stack>
-        </Paper>
-      </Grid>
+              </Stack>
+            </SectionCard>
+          )}
 
-      <Dialog open={deleteOpen} onClose={closeDelete} fullWidth maxWidth="sm">
-        <DialogTitle>Eliminar rifa</DialogTitle>
+          {/* Number grid */}
+          <SectionCard>
+            <Stack spacing={3}>
+              <Stack direction="row" alignItems="center" spacing={2} flexWrap="wrap" justifyContent="space-between">
+                <Typography variant="h6">Selecciona tus numeros</Typography>
+                <Stack direction="row" spacing={1}>
+                  {(
+                    [
+                      ["available", "Disponible", "rgba(47, 180, 154, 0.12)", "#2FB49A"],
+                      ["reserved", "Reservado", "rgba(244, 161, 79, 0.12)", "#F4A14F"],
+                      ["sold", "Vendido", "rgba(204, 75, 75, 0.12)", "#CC4B4B"],
+                    ] as [RaffleNumber["status"], string, string, string][]
+                  ).map(([status, label, bg, color]) => (
+                    <Stack key={status} direction="row" spacing={0.5} alignItems="center">
+                      <Box
+                        sx={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: "4px",
+                          backgroundColor: bg,
+                          border: `2px solid ${color}`,
+                        }}
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        {label}
+                      </Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+              </Stack>
+
+              <NumberGrid
+                numbers={numbers}
+                selectedNumbers={selectedNumbers}
+                onToggle={toggleNumber}
+                disabled={raffle.status !== "active" || !isLoggedIn}
+              />
+            </Stack>
+          </SectionCard>
+
+          {/* Cart summary */}
+          {isLoggedIn && raffle.status === "active" && (
+            <SectionCard
+              sx={{
+                background: selectedNumbers.length > 0 ? "linear-gradient(135deg, rgba(255,252,248,0.98), rgba(255,243,236,0.5))" : undefined,
+                borderColor: selectedNumbers.length > 0 ? "rgba(243,107,79,0.25)" : undefined,
+              }}
+            >
+              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" justifyContent="space-between">
+                <Stack spacing={0.5}>
+                  <Typography variant="body2" color="text.secondary">
+                    {selectedNumbers.length} numeros seleccionados
+                  </Typography>
+                  {selectedNumbers.length > 0 && (
+                    <Typography variant="h6" color="primary.main">
+                      {formatCurrency(totalPrice, raffle.currency)}
+                    </Typography>
+                  )}
+                </Stack>
+                <Button
+                  variant="contained"
+                  size="large"
+                  disabled={selectedNumbers.length === 0}
+                  onClick={() => setShowBuyDialog(true)}
+                  sx={{ borderRadius: 999, px: 4 }}
+                >
+                  Comprar numeros
+                </Button>
+              </Stack>
+            </SectionCard>
+          )}
+        </Stack>
+      </Container>
+
+      {/* Buy dialog */}
+      <Dialog open={showBuyDialog} onClose={() => setShowBuyDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography variant="h5">Confirmar compra</Typography>
+            <IconButton onClick={() => setShowBuyDialog(false)} size="small">
+              <Close />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
         <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              Esta accion no se puede deshacer. Para confirmar, escribe el titulo exacto de la rifa:
+          <Stack spacing={3} sx={{ pt: 1 }}>
+            <Stack spacing={1}>
+              <Typography variant="body2" color="text.secondary">
+                Numeros seleccionados:
+              </Typography>
+              <Stack direction="row" spacing={0.8} flexWrap="wrap">
+                {selectedNumbers.map((n) => (
+                  <Chip
+                    key={n}
+                    label={String(n).padStart(raffle.total_tickets > 100 ? 3 : 2, "0")}
+                    size="small"
+                    color="primary"
+                    sx={{ borderRadius: 2 }}
+                  />
+                ))}
+              </Stack>
+            </Stack>
+
+            <Paper sx={{ p: 2.5, borderRadius: 3, backgroundColor: "rgba(47,180,154,0.06)", border: "1px solid rgba(47,180,154,0.15)" }}>
+              <Stack spacing={1}>
+                <Stack direction="row" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">
+                    {selectedNumbers.length} x{" "}
+                    {formatCurrency(raffle.ticket_price, raffle.currency)}
+                  </Typography>
+                  <Typography variant="body2" fontWeight={600}>
+                    {formatCurrency(totalPrice, raffle.currency)}
+                  </Typography>
+                </Stack>
+                <Stack direction="row" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">
+                    Tarifa de servicio
+                  </Typography>
+                  <Typography variant="body2" fontWeight={600}>
+                    {formatCurrency(0, raffle.currency)}
+                  </Typography>
+                </Stack>
+                <Box sx={{ height: 1, backgroundColor: "divider", my: 0.5 }} />
+                <Stack direction="row" justifyContent="space-between">
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    Total a pagar
+                  </Typography>
+                  <Typography variant="h6" color="primary.main" fontWeight={700}>
+                    {formatCurrency(totalPrice, raffle.currency)}
+                  </Typography>
+                </Stack>
+              </Stack>
+            </Paper>
+
+            <Typography variant="caption" color="text.secondary" sx={{ textAlign: "center" }}>
+              Esta es una compra simulada. No se procesara ningun pago real.
             </Typography>
-            <Typography variant="subtitle2">{raffle.title}</Typography>
-            <TextField
-              label="Escribe el titulo para confirmar"
-              value={deleteInput}
-              onChange={(event) => setDeleteInput(event.target.value)}
-              fullWidth
-              autoFocus
-            />
-            {deleteError && <Alert severity="error">{deleteError}</Alert>}
           </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button variant="text" onClick={closeDelete} disabled={deleting}>
+        <DialogActions sx={{ px: 3, pb: 3, pt: 0 }}>
+          <Button onClick={() => setShowBuyDialog(false)} variant="outlined" size="large" sx={{ borderRadius: 999 }}>
             Cancelar
           </Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={handleDelete}
-            disabled={deleting || deleteInput !== raffle.title}
-          >
-            {deleting ? "Eliminando..." : "Eliminar definitivamente"}
+          <Button variant="contained" size="large" onClick={handleBuy} sx={{ borderRadius: 999, px: 4 }}>
+            Confirmar compra
           </Button>
         </DialogActions>
       </Dialog>
-    </Grid>
+    </Box>
   );
 };
 
-export default RaffleDetailPage;
+export default RaffleDetail;

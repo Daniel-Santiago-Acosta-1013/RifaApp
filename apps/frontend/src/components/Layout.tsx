@@ -1,15 +1,25 @@
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
-import { Logout, Menu } from "@mui/icons-material";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  Close,
+  Home,
+  Login,
+  Logout,
+  Menu,
+  Person,
+  PersonAdd,
+  Storefront,
+} from "@mui/icons-material";
 import {
   AppBar,
   Box,
-  Button,
   Container,
-  Divider,
   Drawer,
   IconButton,
-  Paper,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
   Stack,
   Toolbar,
   Typography,
@@ -17,133 +27,213 @@ import {
   useTheme,
 } from "@mui/material";
 
-import { useApp } from "../context/AppContext";
-import { useAuth } from "../context/AuthContext";
-import BottomNav from "./BottomNav";
 import Brand from "./Brand";
-import ModeSwitch from "./ModeSwitch";
-import SidebarNav from "./SidebarNav";
+import BottomNav from "./BottomNav";
+import { useAuth } from "../context/AuthContext";
 
-const drawerWidth = 280;
+const navItems = [
+  { label: "Inicio", href: "/", icon: <Home /> },
+  { label: "Perfil", href: "/profile", icon: <Person />, auth: true },
+  { label: "Mis rifas", href: "/sell/raffles", icon: <Storefront />, auth: true },
+];
+
+const publicItems = [
+  { label: "Iniciar sesion", href: "/login", icon: <Login /> },
+  { label: "Registrarse", href: "/register", icon: <PersonAdd /> },
+];
 
 const Layout = () => {
   const { user, logout } = useAuth();
-  const { mode } = useApp();
   const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isLoggedIn = !!user;
 
-  const handleDrawerToggle = () => setMobileOpen((prev) => !prev);
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+    setDrawerOpen(false);
+  };
 
-  if (!user) {
-    return (
-      <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-        <Box component="header" sx={{ px: { xs: 2, md: 4 }, py: 3 }}>
-          <Brand subtitle="Rifas estilo colombiano en modo demo." />
-        </Box>
-        <Box component="main" sx={{ flex: 1 }}>
-          <Container maxWidth="lg">
-            <Outlet />
-          </Container>
-        </Box>
-        <Box component="footer" sx={{ px: { xs: 2, md: 4 }, py: 3, color: "text.secondary" }}>
-          <Typography variant="body2">
-            Proyecto de aprendizaje. Compra simulada sin pasarela de pagos.
-          </Typography>
-        </Box>
-      </Box>
-    );
-  }
-
-  const drawerContent = (
-    <Stack sx={{ height: "100%", p: 3 }} spacing={3}>
-      <Brand subtitle="Rifas colombianas en modo demo." />
-      <ModeSwitch />
-      <Divider />
-      <SidebarNav onNavigate={() => setMobileOpen(false)} />
-      <Box sx={{ mt: "auto" }}>
-        <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
-          <Typography variant="subtitle2">{user.name}</Typography>
-          <Typography variant="caption" color="text.secondary">
-            {user.email}
-          </Typography>
-        </Paper>
-        <Button
-          variant="outlined"
-          color="inherit"
-          fullWidth
-          sx={{ mt: 2 }}
-          startIcon={<Logout />}
-          onClick={logout}
-        >
-          Salir
-        </Button>
-      </Box>
-    </Stack>
-  );
+  const filteredNavItems = navItems.filter((item) => {
+    if (item.auth && !isLoggedIn) return false;
+    return true;
+  });
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh" }}>
-      <Drawer
-        variant="temporary"
-        open={mobileOpen}
-        onClose={handleDrawerToggle}
-        ModalProps={{ keepMounted: true }}
-        sx={{
-          display: { xs: "block", md: "none" },
-          "& .MuiDrawer-paper": { width: drawerWidth, boxSizing: "border-box" },
-        }}
-      >
-        {drawerContent}
-      </Drawer>
-      <Drawer
-        variant="permanent"
-        sx={{
-          display: { xs: "none", md: "block" },
-          width: drawerWidth,
-          flexShrink: 0,
-          "& .MuiDrawer-paper": { width: drawerWidth, boxSizing: "border-box" },
-        }}
-        open
-      >
-        {drawerContent}
-      </Drawer>
-
-      <Box
-        sx={{
-          flexGrow: 1,
-          display: "flex",
-          flexDirection: "column",
-          minHeight: "100vh",
-          pb: { xs: 10, md: 0 },
-        }}
-      >
-        <AppBar position="sticky">
-          <Toolbar sx={{ gap: 2 }}>
-            {!isDesktop && (
-              <IconButton color="inherit" onClick={handleDrawerToggle}>
+    <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <AppBar position="sticky">
+        <Container maxWidth="md">
+          <Toolbar disableGutters sx={{ minHeight: 64 }}>
+            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flexGrow: 1 }}>
+              <IconButton
+                edge="start"
+                onClick={() => setDrawerOpen(true)}
+                sx={{
+                  color: "inherit",
+                  backgroundColor: "rgba(243, 107, 79, 0.08)",
+                  borderRadius: 2.5,
+                  width: 40,
+                  height: 40,
+                  "&:hover": {
+                    backgroundColor: "rgba(243, 107, 79, 0.15)",
+                  },
+                }}
+              >
                 <Menu />
               </IconButton>
+              <Brand compact />
+            </Stack>
+            {isLoggedIn ? (
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="body2" fontWeight={600} sx={{ display: { xs: "none", sm: "block" } }}>
+                  {user?.name}
+                </Typography>
+                <IconButton
+                  onClick={handleLogout}
+                  sx={{
+                    color: "text.secondary",
+                    backgroundColor: "rgba(204, 75, 75, 0.08)",
+                    borderRadius: 2.5,
+                    width: 40,
+                    height: 40,
+                    "&:hover": {
+                      backgroundColor: "rgba(204, 75, 75, 0.15)",
+                      color: "error.main",
+                    },
+                  }}
+                >
+                  <Logout />
+                </IconButton>
+              </Stack>
+            ) : (
+              <Stack direction="row" spacing={1}>
+                <Typography
+                  variant="body2"
+                  fontWeight={700}
+                  sx={{
+                    color: "primary.main",
+                    cursor: "pointer",
+                    display: { xs: "none", sm: "block" },
+                  }}
+                  component="a"
+                  href="/login"
+                >
+                  Entrar
+                </Typography>
+              </Stack>
             )}
-            <Brand compact subtitle={mode === "sell" ? "Modo vendedor" : "Modo comprador"} />
-            <Box sx={{ ml: "auto", display: "flex", gap: 2, alignItems: "center" }}>
-              {!isDesktop && <ModeSwitch />}
-              <Button variant="text" color="inherit" onClick={logout} startIcon={<Logout />}>
-                Salir
-              </Button>
-            </Box>
           </Toolbar>
-        </AppBar>
-        <Box component="main" sx={{ flex: 1, py: { xs: 3, md: 4 } }}>
-          <Container maxWidth="lg">
-            <Outlet />
-          </Container>
+        </Container>
+      </AppBar>
+
+      <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+        <Box sx={{ width: 280, p: 2 }}>
+          <Stack spacing={3}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between">
+              <Brand />
+              <IconButton onClick={() => setDrawerOpen(false)} size="small" sx={{ color: "text.secondary" }}>
+                <Close />
+              </IconButton>
+            </Stack>
+
+            <List disablePadding>
+              {filteredNavItems.map((item) => (
+                <ListItemButton
+                  key={item.href}
+                  component="a"
+                  href={item.href}
+                  selected={location.pathname === item.href}
+                  onClick={() => setDrawerOpen(false)}
+                  sx={{
+                    borderRadius: 3,
+                    mb: 0.5,
+                    transition: "all 0.2s ease",
+                    "&.Mui-selected": {
+                      backgroundColor: "rgba(243, 107, 79, 0.08)",
+                      color: "primary.main",
+                      "&:hover": {
+                        backgroundColor: "rgba(243, 107, 79, 0.12)",
+                      },
+                      "& .MuiListItemIcon-root": {
+                        color: "primary.main",
+                      },
+                    },
+                    "&:hover": {
+                      backgroundColor: "rgba(28, 31, 38, 0.04)",
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: "text.secondary", minWidth: 40 }}>{item.icon}</ListItemIcon>
+                  <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
+                </ListItemButton>
+              ))}
+            </List>
+
+            {!isLoggedIn && (
+              <>
+                <Box sx={{ height: 1, backgroundColor: "divider" }} />
+                <List disablePadding>
+                  {publicItems.map((item) => (
+                    <ListItemButton
+                      key={item.href}
+                      component="a"
+                      href={item.href}
+                      selected={location.pathname === item.href}
+                      onClick={() => setDrawerOpen(false)}
+                      sx={{
+                        borderRadius: 3,
+                        mb: 0.5,
+                        transition: "all 0.2s ease",
+                        "&.Mui-selected": {
+                          backgroundColor: "rgba(243, 107, 79, 0.08)",
+                          color: "primary.main",
+                          "& .MuiListItemIcon-root": {
+                            color: "primary.main",
+                          },
+                        },
+                        "&:hover": {
+                          backgroundColor: "rgba(28, 31, 38, 0.04)",
+                        },
+                      }}
+                    >
+                      <ListItemIcon sx={{ color: "text.secondary", minWidth: 40 }}>{item.icon}</ListItemIcon>
+                      <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
+                    </ListItemButton>
+                  ))}
+                </List>
+              </>
+            )}
+
+            {isLoggedIn && (
+              <>
+                <Box sx={{ height: 1, backgroundColor: "divider" }} />
+                <ListItemButton
+                  onClick={handleLogout}
+                  sx={{
+                    borderRadius: 3,
+                    color: "error.main",
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      backgroundColor: "rgba(204, 75, 75, 0.08)",
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: "error.main", minWidth: 40 }}>
+                    <Logout />
+                  </ListItemIcon>
+                  <ListItemText primary="Cerrar sesion" primaryTypographyProps={{ fontWeight: 600 }} />
+                </ListItemButton>
+              </>
+            )}
+          </Stack>
         </Box>
-        <Box component="footer" sx={{ px: { xs: 2, md: 4 }, py: 3, color: "text.secondary" }}>
-          <Typography variant="body2">
-            Proyecto de aprendizaje. Compra simulada sin pasarela de pagos.
-          </Typography>
-        </Box>
+      </Drawer>
+
+      <Box sx={{ flex: 1, pb: isMobile && isLoggedIn ? 8 : 0 }}>
+        <Outlet />
       </Box>
 
       <BottomNav />

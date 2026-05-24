@@ -1,29 +1,27 @@
 version: "3.9"
 
 services:
-  api:
-    build:
-      context: ./apps/api
-      dockerfile: Dockerfile
-    container_name: rifaapp-api
+  db:
+    image: postgres:16-alpine
+    container_name: rifaapp-db
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppassword
+      POSTGRES_DB: rifaapp
     ports:
-      - "8000:8000"
-    env_file:
-      - ./apps/api/.env.example
+      - "5432:5432"
+    volumes:
+      - rifaapp_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appuser -d rifaapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - rifaapp-network
 
-  frontend:
-    build:
-      context: ./apps/frontend
-      dockerfile: Dockerfile
-    container_name: rifaapp-frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - api
-    networks:
-      - rifaapp-network
+volumes:
+  rifaapp_postgres_data:
 
 networks:
   rifaapp-network:
