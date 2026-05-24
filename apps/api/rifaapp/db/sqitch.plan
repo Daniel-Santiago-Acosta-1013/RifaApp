@@ -1,7 +1,7 @@
 %syntax-version=1.0.0
 %project=rifaapp
 
-create_write_schema # write schema/tables
-create_read_schema # read schema/tables
-raffle_owner # add owner_id to raffles and read model
-read_projection_triggers # keep read model in sync from DB triggers
+create_write_schema 2026-05-24T18:30:00Z RifaApp Team <team@rifaapp.local> # write schema/tables
+create_read_schema 2026-05-24T18:31:00Z RifaApp Team <team@rifaapp.local> # read schema/tables
+raffle_owner 2026-05-24T18:32:00Z RifaApp Team <team@rifaapp.local> # add owner_id to raffles and read model
+read_projection_triggers 2026-05-24T18:33:00Z RifaApp Team <team@rifaapp.local> # keep read model in sync from DB triggers
