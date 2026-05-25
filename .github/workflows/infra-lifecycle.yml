@@ -149,6 +149,51 @@ jobs:
             echo "No project VPC found with tag Name=$VPC_NAME. Skipping orphaned resource cleanup."
           fi
 
+      - name: Empty frontend bucket before destroy
+        if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
+        run: |
+          ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          STATE_BUCKET="${{ vars.STATE_BUCKET_NAME }}"
+          if [ -z "$STATE_BUCKET" ]; then
+            STATE_BUCKET="rifaapp-terraform-state-${ACCOUNT_ID}"
+          fi
+          STATE_KEY="rifaapp/frontend/terraform.tfstate"
+          STATE_FILE="${RUNNER_TEMP}/frontend.tfstate"
+
+          if ! aws s3api head-object --bucket "$STATE_BUCKET" --key "$STATE_KEY" >/dev/null 2>&1; then
+            echo "Frontend state s3://${STATE_BUCKET}/${STATE_KEY} not found. Skipping frontend bucket cleanup."
+            exit 0
+          fi
+
+          aws s3api get-object --bucket "$STATE_BUCKET" --key "$STATE_KEY" "$STATE_FILE" >/dev/null
+          FRONTEND_BUCKET="$(jq -r '.resources[]? | select(.type=="aws_s3_bucket" and .name=="frontend") | .instances[]?.attributes.bucket // empty' "$STATE_FILE" | head -n 1)"
+
+          if [ -z "$FRONTEND_BUCKET" ]; then
+            echo "Frontend bucket not found in Terraform state. Skipping cleanup."
+            exit 0
+          fi
+
+          if ! aws s3api head-bucket --bucket "$FRONTEND_BUCKET" >/dev/null 2>&1; then
+            echo "Frontend bucket $FRONTEND_BUCKET does not exist. Skipping cleanup."
+            exit 0
+          fi
+
+          echo "Emptying frontend bucket s3://${FRONTEND_BUCKET} before Terraform destroy..."
+          aws s3 rm "s3://${FRONTEND_BUCKET}" --recursive || true
+
+          while true; do
+            versions_file="${RUNNER_TEMP}/frontend-bucket-versions.json"
+            delete_file="${RUNNER_TEMP}/frontend-bucket-delete.json"
+            aws s3api list-object-versions --bucket "$FRONTEND_BUCKET" --max-items 1000 > "$versions_file"
+            jq '{Objects: ((.Versions // []) + (.DeleteMarkers // []) | map({Key, VersionId})), Quiet: true}' "$versions_file" > "$delete_file"
+            object_count="$(jq '.Objects | length' "$delete_file")"
+            if [ "$object_count" -eq 0 ]; then
+              break
+            fi
+            echo "Deleting $object_count versioned objects/delete markers from $FRONTEND_BUCKET..."
+            aws s3api delete-objects --bucket "$FRONTEND_BUCKET" --delete "file://${delete_file}" >/dev/null
+          done
+
       - name: Terragrunt destroy (frontend)
         if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
         working-directory: infra/terraform/envs/frontend
