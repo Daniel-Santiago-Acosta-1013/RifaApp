@@ -31,6 +31,6 @@ inputs = {
   project_name         = "rifaapp"
   environment          = "dev"
   frontend_bucket_name = get_env("TF_VAR_frontend_bucket_name", "")
-  frontend_force_destroy = get_env("TF_VAR_frontend_force_destroy", "false") == "true"
+  frontend_force_destroy = get_env("TF_VAR_frontend_force_destroy", "true") == "true"
   frontend_price_class = get_env("TF_VAR_frontend_price_class", "PriceClass_100")
 }

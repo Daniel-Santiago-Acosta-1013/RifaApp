@@ -112,9 +112,9 @@ La API FastAPI y su documentacion viven en `apps/api/README.md`.
 - `frontend_url`: URL publica de CloudFront
 
 ## CI/CD (GitHub Actions)
-Workflow manual en `/.github/workflows/deploy.yml` (solo `workflow_dispatch`), usa Terragrunt.
+Workflow manual en `/.github/workflows/infra-lifecycle.yml` (solo `workflow_dispatch`), usa Terragrunt.
 Workflow manual en `/.github/workflows/migrate.yml` para ejecutar migraciones con Sqitch.
-Workflow manual en `/.github/workflows/destroy.yml` para destruir toda la infraestructura con un solo disparo.
+Workflow programado/manual en `/.github/workflows/destroy-infra-scheduled.yml` para destruir recursos del entorno dev.
 El deploy del frontend corre desde el repo `apps/frontend` y aplica Terragrunt en `infra/terraform/envs/frontend`.
 
 Configura en GitHub (repo principal):
@@ -124,7 +124,9 @@ Configura en GitHub (repo principal):
 ## Notas
 - `db_password` se guarda en el estado de Terraform.
 - `enable_nat_gateway` esta en `true` en live para que CodeBuild pueda instalar Sqitch desde subnets privadas y ejecutar migraciones contra Aurora.
-- Para eliminar recursos: `terragrunt --working-dir infra/terraform/live run-all destroy`. El bucket de estado se elimina aparte en `infra/blueprints/bootstrap/`.
-- El workflow `destroy.yml` no pide inputs: destruye frontend, backend, lambdas, base de datos y bucket de estado usando las variables del repo (`PROJECT_NAME`, `ENVIRONMENT`, `STATE_BUCKET_NAME`, `BACKEND_REPO`, `BACKEND_REF`).
+- Para eliminar recursos: usa `infra-lifecycle.yml` con `action=destroy` y `confirm_destroy=DESTROY`, o deja correr `destroy-infra-scheduled.yml`.
+- El bucket de estado remoto queda vivo por diseño. Es el unico recurso permitido despues del destroy y se elimina aparte desde `infra/blueprints/bootstrap/` si realmente quieres borrar el backend de Terraform.
+- Los workflows de destroy fallan si Terraform no destruye correctamente. Luego hacen limpieza best-effort de residuos conocidos: versiones antiguas de Lambda Layers, CloudWatch Logs de Lambda/CodeBuild, snapshots manuales de Aurora, HTTP APIs huerfanas, secrets taggeados y buckets del entorno.
+- Al final del destroy hay una verificacion obligatoria por tags/nombres. Si queda cualquier recurso del proyecto distinto al bucket de estado, el job falla.
 - Las migraciones deben ejecutarse con Sqitch. No hay fallback a SQL directo.
 - El workflow de migraciones empaqueta `rifaapp/db`, lo sube a S3 y dispara CodeBuild. CodeBuild corre dentro de la VPC con el security group `${PROJECT_NAME}-${ENVIRONMENT}-db-client`, instala Sqitch y aplica las migraciones contra Aurora privada.

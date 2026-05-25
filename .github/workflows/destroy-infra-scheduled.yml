@@ -43,11 +43,17 @@ jobs:
         id: managed-resources
         run: |
           account_id="$(aws sts get-caller-identity --query Account --output text)"
-          state_bucket="${{ vars.STATE_BUCKET_NAME || 'rifaapp-terraform-state-' }}${account_id}"
+          state_bucket="${{ vars.STATE_BUCKET_NAME }}"
+          if [ -z "$state_bucket" ]; then
+            state_bucket="rifaapp-terraform-state-${account_id}"
+          fi
+          project_name="${{ vars.PROJECT_NAME || 'rifaapp' }}"
+          environment="${{ vars.ENVIRONMENT || 'dev' }}"
+          name_prefix="${project_name}-${environment}"
 
           # Modules to check for managed resources
           modules=(
-            "envs/frontend"
+            "frontend"
             "live/shared/network"
             "live/shared/db"
             "live/shared/api"
@@ -84,6 +90,40 @@ jobs:
               exit "$head_exit"
             fi
           done
+
+          echo "Checking for tagged orphaned resources..."
+          tagged_resources="$(aws resourcegroupstaggingapi get-resources \
+            --tag-filters Key=Project,Values="$project_name" Key=Environment,Values="$environment" \
+            --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null || true)"
+          if [ -n "$tagged_resources" ]; then
+            printf '%s\n' "$tagged_resources"
+            should_destroy=true
+          fi
+
+          echo "Checking for project-named S3 buckets..."
+          project_buckets="$(aws s3api list-buckets --query "Buckets[?starts_with(Name, \`${name_prefix}-\`) && Name!=\`${state_bucket}\`].Name" --output text 2>/dev/null || true)"
+          if [ -n "$project_buckets" ]; then
+            printf '%s\n' "$project_buckets"
+            should_destroy=true
+          fi
+
+          echo "Checking for project log groups..."
+          for prefix in "/aws/lambda/${name_prefix}" "/aws/codebuild/${name_prefix}"; do
+            log_groups="$(aws logs describe-log-groups --log-group-name-prefix "$prefix" --query 'logGroups[*].logGroupName' --output text 2>/dev/null || true)"
+            if [ -n "$log_groups" ]; then
+              printf '%s\n' "$log_groups"
+              should_destroy=true
+            fi
+          done
+
+          echo "Checking for project RDS snapshots, Lambda layers, and HTTP APIs..."
+          snapshots="$(aws rds describe-db-cluster-snapshots --snapshot-type manual --query "DBClusterSnapshots[?starts_with(DBClusterSnapshotIdentifier, \`${name_prefix}-aurora\`)].DBClusterSnapshotIdentifier" --output text 2>/dev/null || true)"
+          layers="$(aws lambda list-layers --query "Layers[?starts_with(LayerName, \`${name_prefix}\`)].LayerName" --output text 2>/dev/null || true)"
+          apis="$(aws apigatewayv2 get-apis --query "Items[?Name==\`${name_prefix}-http-api\`].ApiId" --output text 2>/dev/null || true)"
+          if [ -n "$snapshots$layers$apis" ]; then
+            printf '%s\n' "$snapshots" "$layers" "$apis"
+            should_destroy=true
+          fi
 
           if [ "$should_destroy" = "true" ]; then
             echo "should_destroy=true" >> "$GITHUB_OUTPUT"
@@ -169,13 +209,13 @@ jobs:
         if: ${{ steps.managed-resources.outputs.should_destroy == 'true' }}
         working-directory: infra/terraform/envs/frontend
         run: |
-          terragrunt --non-interactive destroy -auto-approve || true
+          terragrunt --non-interactive destroy -auto-approve
 
       - name: Destroy live infrastructure
         if: ${{ steps.managed-resources.outputs.should_destroy == 'true' }}
         working-directory: infra/terraform/live
         run: |
-          terragrunt --log-level error --non-interactive run --all -- destroy -auto-approve || true
+          terragrunt --log-level error --non-interactive run --all -- destroy -auto-approve
 
       - name: Post-destroy cleanup of remaining project resources
         if: ${{ steps.managed-resources.outputs.should_destroy == 'true' }}
@@ -185,10 +225,11 @@ jobs:
           NAME_PREFIX="${PROJECT_NAME}-${ENVIRONMENT}"
 
           echo "=== Cleaning up Lambda Layers ==="
-          for layer_arn in $(aws lambda list-layers --query "Layers[?starts_with(LayerName, \`${NAME_PREFIX}\`)].LayerArn" --output text 2>/dev/null); do
-            echo "  Deleting Lambda Layer $layer_arn"
-            aws lambda delete-layer-version --layer-name "$layer_arn" --version-number 1 2>/dev/null || true
-            aws lambda delete-layer-version --layer-name "$layer_arn" --version-number 2 2>/dev/null || true
+          for layer_name in $(aws lambda list-layers --query "Layers[?starts_with(LayerName, \`${NAME_PREFIX}\`)].LayerName" --output text 2>/dev/null); do
+            for version in $(aws lambda list-layer-versions --layer-name "$layer_name" --query 'LayerVersions[].Version' --output text 2>/dev/null); do
+              echo "  Deleting Lambda Layer $layer_name version $version"
+              aws lambda delete-layer-version --layer-name "$layer_name" --version-number "$version" 2>/dev/null || true
+            done
           done
 
           echo "=== Cleaning up CloudWatch Log Groups ==="
@@ -196,12 +237,94 @@ jobs:
             echo "  Deleting log group $log_group"
             aws logs delete-log-group --log-group-name "$log_group" || true
           done
+          for log_group in $(aws logs describe-log-groups --log-group-name-prefix "/aws/codebuild/${NAME_PREFIX}" --query 'logGroups[*].logGroupName' --output text 2>/dev/null); do
+            echo "  Deleting log group $log_group"
+            aws logs delete-log-group --log-group-name "$log_group" || true
+          done
 
-          echo "=== Cleaning up Secrets Manager secrets (with recovery window) ==="
-          for secret_arn in $(aws secretsmanager list-secrets --filters Key=name,Values="rds!cluster-${NAME_PREFIX}" --query 'SecretList[*].ARN' --output text 2>/dev/null); do
-            echo "  Scheduling deletion for secret $secret_arn"
+          echo "=== Cleaning up RDS manual snapshots ==="
+          for snapshot_id in $(aws rds describe-db-cluster-snapshots --snapshot-type manual --query "DBClusterSnapshots[?starts_with(DBClusterSnapshotIdentifier, \`${NAME_PREFIX}-aurora\`)].DBClusterSnapshotIdentifier" --output text 2>/dev/null); do
+            echo "  Deleting DB cluster snapshot $snapshot_id"
+            aws rds delete-db-cluster-snapshot --db-cluster-snapshot-identifier "$snapshot_id" || true
+          done
+
+          echo "=== Cleaning up API Gateway HTTP APIs ==="
+          for api_id in $(aws apigatewayv2 get-apis --query "Items[?Name==\`${NAME_PREFIX}-http-api\`].ApiId" --output text 2>/dev/null); do
+            echo "  Deleting HTTP API $api_id"
+            aws apigatewayv2 delete-api --api-id "$api_id" || true
+          done
+
+          echo "=== Cleaning up tagged Secrets Manager secrets ==="
+          for secret_arn in $(aws resourcegroupstaggingapi get-resources --tag-filters Key=Project,Values="$PROJECT_NAME" Key=Environment,Values="$ENVIRONMENT" --query 'ResourceTagMappingList[?contains(ResourceARN, `:secret:`)].ResourceARN' --output text 2>/dev/null); do
+            echo "  Force deleting secret $secret_arn"
             aws secretsmanager delete-secret --secret-id "$secret_arn" --force-delete-without-recovery 2>/dev/null || true
           done
+
+      - name: Verify project resources are gone
+        if: ${{ steps.managed-resources.outputs.should_destroy == 'true' }}
+        run: |
+          PROJECT_NAME="${{ vars.PROJECT_NAME || 'rifaapp' }}"
+          ENVIRONMENT="${{ vars.ENVIRONMENT || 'dev' }}"
+          NAME_PREFIX="${PROJECT_NAME}-${ENVIRONMENT}"
+          ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          STATE_BUCKET="${{ vars.STATE_BUCKET_NAME }}"
+          if [ -z "$STATE_BUCKET" ]; then
+            STATE_BUCKET="rifaapp-terraform-state-${ACCOUNT_ID}"
+          fi
+          leftovers=0
+
+          echo "Allowed residual resource: s3://${STATE_BUCKET}"
+
+          echo "=== Tagged resources ==="
+          for arn in $(aws resourcegroupstaggingapi get-resources --tag-filters Key=Project,Values="$PROJECT_NAME" Key=Environment,Values="$ENVIRONMENT" --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null); do
+            if [ "$arn" = "arn:aws:s3:::${STATE_BUCKET}" ]; then
+              continue
+            fi
+            echo "  Remaining tagged resource: $arn"
+            leftovers=1
+          done
+
+          echo "=== Project S3 buckets ==="
+          for bucket in $(aws s3api list-buckets --query "Buckets[?starts_with(Name, \`${NAME_PREFIX}-\`) || Name==\`${STATE_BUCKET}\`].Name" --output text 2>/dev/null); do
+            if [ "$bucket" = "$STATE_BUCKET" ]; then
+              continue
+            fi
+            echo "  Remaining S3 bucket: $bucket"
+            leftovers=1
+          done
+
+          echo "=== Project CloudWatch log groups ==="
+          for prefix in "/aws/lambda/${NAME_PREFIX}" "/aws/codebuild/${NAME_PREFIX}"; do
+            for log_group in $(aws logs describe-log-groups --log-group-name-prefix "$prefix" --query 'logGroups[*].logGroupName' --output text 2>/dev/null); do
+              echo "  Remaining log group: $log_group"
+              leftovers=1
+            done
+          done
+
+          echo "=== Project RDS snapshots ==="
+          for snapshot_id in $(aws rds describe-db-cluster-snapshots --snapshot-type manual --query "DBClusterSnapshots[?starts_with(DBClusterSnapshotIdentifier, \`${NAME_PREFIX}-aurora\`)].DBClusterSnapshotIdentifier" --output text 2>/dev/null); do
+            echo "  Remaining DB cluster snapshot: $snapshot_id"
+            leftovers=1
+          done
+
+          echo "=== Project Lambda layers ==="
+          for layer_name in $(aws lambda list-layers --query "Layers[?starts_with(LayerName, \`${NAME_PREFIX}\`)].LayerName" --output text 2>/dev/null); do
+            echo "  Remaining Lambda layer: $layer_name"
+            leftovers=1
+          done
+
+          echo "=== Project HTTP APIs ==="
+          for api_id in $(aws apigatewayv2 get-apis --query "Items[?Name==\`${NAME_PREFIX}-http-api\`].ApiId" --output text 2>/dev/null); do
+            echo "  Remaining HTTP API: $api_id"
+            leftovers=1
+          done
+
+          if [ "$leftovers" -ne 0 ]; then
+            echo "ERROR: Project resources remain after destroy."
+            exit 1
+          fi
+
+          echo "Destroy verification passed. Only the remote state bucket is allowed to remain."
 
       - name: Confirm remote state backend is preserved
         run: |
