@@ -24,7 +24,7 @@ import Onboarding from "../components/Onboarding";
 import PageHeader from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { type Raffle } from "../types";
-import { RAFFLE_STATUS_LABELS, formatCurrency, formatDate, statusChipColor } from "../utils";
+import { RAFFLE_STATUS_LABELS, formatCurrency, formatDate, isRaffleCompleted, isRaffleOpen, statusChipColor } from "../utils";
 
 const SellRafflesPage = () => {
   const { user } = useAuth();
@@ -114,8 +114,8 @@ const SellRafflesPage = () => {
             <Stack spacing={3}>
               {raffles.map((raffle) => {
                 const progress = Math.min(100, (raffle.tickets_sold / raffle.total_tickets) * 100);
-                const isHot = progress >= 80 && raffle.status === "active";
-                const isCompleted = raffle.status === "completed";
+                const isHot = progress >= 80 && isRaffleOpen(raffle.status);
+                const isCompleted = isRaffleCompleted(raffle.status);
 
                 return (
                   <Paper

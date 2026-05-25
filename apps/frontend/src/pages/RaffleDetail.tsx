@@ -1,25 +1,24 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Link, useParams } from "react-router-dom";
 import {
-  Close,
+  AccountBalanceWallet,
+  Celebration,
+  CheckCircle,
   Edit,
   EmojiEvents,
+  EventAvailable,
   Save,
-  Timer,
-  CheckCircle,
   Share,
-  Celebration,
+  ShoppingCart,
+  Timer,
 } from "@mui/icons-material";
 import {
+  Alert,
   Box,
   Button,
   Chip,
+  CircularProgress,
   Container,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
   LinearProgress,
   Paper,
   Stack,
@@ -27,14 +26,28 @@ import {
   Typography,
 } from "@mui/material";
 
-import { getRaffle, getRaffleNumbers } from "../api/client";
+import {
+  confirmPurchase,
+  getRaffle,
+  getRaffleNumbers,
+  releaseReservation,
+  reserveNumbers,
+} from "../api/client";
 import NumberGrid from "../components/NumberGrid";
-import PageHeader from "../components/PageHeader";
+import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
-import { type Raffle, type RaffleNumber } from "../types";
-import { formatCurrency, formatDate, statusChipColor } from "../utils";
+import { type PurchaseConfirmResponse, type Raffle, type RaffleNumber, type ReservationResponse } from "../types";
+import {
+  RAFFLE_STATUS_LABELS,
+  formatCurrency,
+  formatDate,
+  isRaffleCompleted,
+  isRaffleOpen,
+  statusChipColor,
+} from "../utils";
+import { setParticipantId } from "../utils/participants";
 
-const InfoRow = ({ icon, label, value, color = "text.secondary" }: { icon: React.ReactNode; label: string; value: string | number; color?: string }) => (
+const InfoRow = ({ icon, label, value, color = "text.secondary" }: { icon: ReactNode; label: string; value: string | number; color?: string }) => (
   <Stack direction="row" spacing={1.5} alignItems="center">
     <Box sx={{ color: "text.secondary", display: "flex", alignItems: "center" }}>{icon}</Box>
     <Typography variant="body2" color="text.secondary">
@@ -46,22 +59,30 @@ const InfoRow = ({ icon, label, value, color = "text.secondary" }: { icon: React
   </Stack>
 );
 
-const SectionCard = ({ children, sx }: { children: React.ReactNode; sx?: object }) => (
+const SectionCard = ({ children, sx }: { children: ReactNode; sx?: object }) => (
   <Paper sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 3, border: "1px solid rgba(239,231,220,0.8)", ...sx }}>
     {children}
   </Paper>
 );
 
-const statusLabels: Record<string, string> = {
-  active: "Activa",
-  completed: "Finalizada",
-  cancelled: "Cancelada",
-  draft: "Borrador",
-};
+const PurchaseNumbers = ({ numbers, totalTickets }: { numbers: number[]; totalTickets: number }) => (
+  <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
+    {numbers.map((number) => (
+      <Chip
+        key={number}
+        label={String(number).padStart(totalTickets > 100 ? 3 : 2, "0")}
+        size="small"
+        color="primary"
+        sx={{ borderRadius: 2 }}
+      />
+    ))}
+  </Stack>
+);
 
 const RaffleDetail = () => {
   const { raffleId } = useParams<{ raffleId: string }>();
   const { user } = useAuth();
+  const { balance, credit, debit } = useApp();
   const isLoggedIn = !!user;
 
   const [raffle, setRaffle] = useState<Raffle | null>(null);
@@ -69,6 +90,12 @@ const RaffleDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([]);
+  const [reservation, setReservation] = useState<ReservationResponse | null>(null);
+  const [purchase, setPurchase] = useState<PurchaseConfirmResponse | null>(null);
+  const [purchaseError, setPurchaseError] = useState("");
+  const [reserving, setReserving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [releasing, setReleasing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     title: "",
@@ -77,35 +104,38 @@ const RaffleDetail = () => {
     total_tickets: 0,
     draw_at: "",
   });
-  const [showBuyDialog, setShowBuyDialog] = useState(false);
 
-  useEffect(() => {
+  const loadRaffle = useCallback(async () => {
     if (!raffleId) {
       setLoading(false);
       return;
     }
-    setLoading(true);
-    Promise.all([
+
+    const [raffleData, numbersData] = await Promise.all([
       getRaffle(raffleId),
       getRaffleNumbers(raffleId),
-    ])
-      .then(([raffleData, numbersData]) => {
-        setRaffle(raffleData);
-        setNumbers(numbersData.numbers);
-        setEditForm({
-          title: raffleData.title || "",
-          description: raffleData.description || "",
-          ticket_price: raffleData.ticket_price ? parseFloat(String(raffleData.ticket_price)) : 0,
-          total_tickets: raffleData.total_tickets || 0,
-          draw_at: raffleData.draw_at ? new Date(raffleData.draw_at).toISOString().split("T")[0] : "",
-        });
-        setError("");
-      })
+    ]);
+
+    setRaffle(raffleData);
+    setNumbers(numbersData.numbers);
+    setEditForm({
+      title: raffleData.title || "",
+      description: raffleData.description || "",
+      ticket_price: raffleData.ticket_price ? parseFloat(String(raffleData.ticket_price)) : 0,
+      total_tickets: raffleData.total_tickets || 0,
+      draw_at: raffleData.draw_at ? new Date(raffleData.draw_at).toISOString().split("T")[0] : "",
+    });
+    setError("");
+  }, [raffleId]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadRaffle()
       .catch((err) => {
         setError(err instanceof Error ? err.message : "Error al cargar la rifa");
       })
       .finally(() => setLoading(false));
-  }, [raffleId]);
+  }, [loadRaffle]);
 
   if (loading) {
     return (
@@ -130,20 +160,99 @@ const RaffleDetail = () => {
     );
   }
 
-  const progress = (raffle.tickets_sold / raffle.total_tickets) * 100;
-  const isHot = progress >= 80 && raffle.status === "active";
-  const totalPrice = selectedNumbers.length * parseFloat(String(raffle.ticket_price));
+  const progress = Math.min(100, (raffle.tickets_sold / raffle.total_tickets) * 100);
+  const raffleOpen = isRaffleOpen(raffle.status);
+  const isHot = progress >= 80 && raffleOpen;
+  const totalPrice = reservation
+    ? parseFloat(String(reservation.total_price))
+    : selectedNumbers.length * parseFloat(String(raffle.ticket_price));
+  const reservedNumbers = reservation?.numbers ?? purchase?.numbers ?? [];
+  const canSelectNumbers = raffleOpen && isLoggedIn && !reservation && !purchase;
+
+  const refreshNumbers = async () => {
+    try {
+      await loadRaffle();
+    } catch {
+      // La compra ya cambio de estado localmente; si falla el refresco, el siguiente load lo corrige.
+    }
+  };
 
   const toggleNumber = (num: number) => {
+    if (!canSelectNumbers) return;
     setSelectedNumbers((prev) =>
       prev.includes(num) ? prev.filter((n) => n !== num) : [...prev, num],
     );
   };
 
-  const handleBuy = () => {
-    setShowBuyDialog(false);
-    setSelectedNumbers([]);
-    alert("Compra simulada exitosa.");
+  const handleReserve = async () => {
+    if (!raffleId || !user || selectedNumbers.length === 0) return;
+
+    setReserving(true);
+    setPurchaseError("");
+    try {
+      const response = await reserveNumbers(raffleId, {
+        participant: {
+          name: user.name,
+          email: user.email,
+        },
+        numbers: selectedNumbers,
+        ttl_minutes: 10,
+      });
+      setReservation(response);
+      setSelectedNumbers([]);
+      setParticipantId(user.email, response.participant_id);
+      await refreshNumbers();
+    } catch (err) {
+      setPurchaseError(err instanceof Error ? err.message : "No se pudo reservar. Intenta de nuevo.");
+    } finally {
+      setReserving(false);
+    }
+  };
+
+  const handleRelease = async () => {
+    if (!raffleId || !reservation) return;
+
+    setReleasing(true);
+    setPurchaseError("");
+    try {
+      await releaseReservation(raffleId, reservation.reservation_id);
+      setReservation(null);
+      await refreshNumbers();
+    } catch (err) {
+      setPurchaseError(err instanceof Error ? err.message : "No se pudo liberar la reserva.");
+    } finally {
+      setReleasing(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!raffleId || !reservation) return;
+
+    const amount = parseFloat(String(reservation.total_price));
+    if (!debit(amount)) {
+      setPurchaseError("Saldo demo insuficiente para confirmar esta compra.");
+      return;
+    }
+
+    setConfirming(true);
+    setPurchaseError("");
+    try {
+      const response = await confirmPurchase(raffleId, {
+        reservation_id: reservation.reservation_id,
+        participant_id: reservation.participant_id,
+        payment_method: "demo",
+      });
+      setPurchase(response);
+      setParticipantId(user?.email || "", response.participant_id);
+      setReservation(null);
+      setSelectedNumbers([]);
+      await refreshNumbers();
+    } catch (err) {
+      credit(amount);
+      setPurchaseError(err instanceof Error ? err.message : "No se pudo confirmar la compra.");
+    } finally {
+      setConfirming(false);
+    }
   };
 
   const handleSave = () => {
@@ -155,7 +264,6 @@ const RaffleDetail = () => {
     <Box component="main">
       <Container maxWidth="md" sx={{ py: { xs: 3, md: 5 } }}>
         <Stack spacing={3}>
-          {/* Header hero */}
           <Paper
             sx={{
               p: { xs: 3, md: 5 },
@@ -185,20 +293,20 @@ const RaffleDetail = () => {
                     color: isHot ? "primary.main" : "secondary.main",
                   }}
                 >
-                  {raffle.status === "completed" ? <Celebration sx={{ fontSize: 32 }} /> : <EmojiEvents sx={{ fontSize: 32 }} />}
+                  {isRaffleCompleted(raffle.status) ? <Celebration sx={{ fontSize: 32 }} /> : <EmojiEvents sx={{ fontSize: 32 }} />}
                 </Box>
                 <Box sx={{ flex: 1 }}>
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" gap={1}>
                     <Typography variant="h4">{raffle.title}</Typography>
                     <Chip
-                      label={statusLabels[raffle.status] || raffle.status}
+                      label={RAFFLE_STATUS_LABELS[raffle.status] || raffle.status}
                       size="small"
                       color={statusChipColor(raffle.status)}
                       sx={{ height: 26 }}
                     />
                     {isHot && (
                       <Chip
-                        label="🔥 Casi llena"
+                        label="Casi llena"
                         size="small"
                         sx={{
                           height: 26,
@@ -235,28 +343,25 @@ const RaffleDetail = () => {
                   />
                 </Stack>
 
-                <Box sx={{ width: "100%" }}>
-                  <LinearProgress
-                    variant="determinate"
-                    value={progress}
-                    sx={{
-                      height: 10,
+                <LinearProgress
+                  variant="determinate"
+                  value={progress}
+                  sx={{
+                    height: 10,
+                    borderRadius: 999,
+                    backgroundColor: "rgba(28, 31, 38, 0.06)",
+                    "& .MuiLinearProgress-bar": {
                       borderRadius: 999,
-                      backgroundColor: "rgba(28, 31, 38, 0.06)",
-                      "& .MuiLinearProgress-bar": {
-                        borderRadius: 999,
-                        background: isHot
-                          ? "linear-gradient(90deg, #F36B4F, #FFB089)"
-                          : "linear-gradient(90deg, #2FB49A, #8FE2D3)",
-                      },
-                    }}
-                  />
-                </Box>
+                      background: isHot
+                        ? "linear-gradient(90deg, #F36B4F, #FFB089)"
+                        : "linear-gradient(90deg, #2FB49A, #8FE2D3)",
+                    },
+                  }}
+                />
               </Stack>
             </Stack>
           </Paper>
 
-          {/* Actions */}
           {isLoggedIn && (
             <Stack direction="row" spacing={1.5}>
               <Button
@@ -268,7 +373,7 @@ const RaffleDetail = () => {
               >
                 {editing ? "Cancelar edicion" : "Editar rifa"}
               </Button>
-              {raffle.status === "active" && (
+              {raffleOpen && (
                 <Button variant="contained" size="large" sx={{ borderRadius: 999 }}>
                   Sortear ganador
                 </Button>
@@ -279,7 +384,6 @@ const RaffleDetail = () => {
             </Stack>
           )}
 
-          {/* Edit form */}
           {isLoggedIn && editing && (
             <SectionCard>
               <Stack spacing={3}>
@@ -336,7 +440,6 @@ const RaffleDetail = () => {
             </SectionCard>
           )}
 
-          {/* Number grid */}
           <SectionCard>
             <Stack spacing={3}>
               <Stack direction="row" alignItems="center" spacing={2} flexWrap="wrap" justifyContent="space-between">
@@ -370,21 +473,40 @@ const RaffleDetail = () => {
               <NumberGrid
                 numbers={numbers}
                 selectedNumbers={selectedNumbers}
+                reservedNumbers={reservedNumbers}
                 onToggle={toggleNumber}
-                disabled={raffle.status !== "active" || !isLoggedIn}
+                disabled={!canSelectNumbers}
               />
             </Stack>
           </SectionCard>
 
-          {/* Cart summary */}
-          {isLoggedIn && raffle.status === "active" && (
+          {purchaseError && (
+            <Alert severity="error" sx={{ borderRadius: 3 }}>
+              {purchaseError}
+            </Alert>
+          )}
+
+          {!isLoggedIn && raffleOpen && (
+            <SectionCard>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }} justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">
+                  Inicia sesion para reservar numeros y completar la compra.
+                </Typography>
+                <Button component={Link} to="/login" variant="contained" sx={{ borderRadius: 999 }}>
+                  Iniciar sesion
+                </Button>
+              </Stack>
+            </SectionCard>
+          )}
+
+          {isLoggedIn && raffleOpen && !reservation && !purchase && (
             <SectionCard
               sx={{
                 background: selectedNumbers.length > 0 ? "linear-gradient(135deg, rgba(255,252,248,0.98), rgba(255,243,236,0.5))" : undefined,
                 borderColor: selectedNumbers.length > 0 ? "rgba(243,107,79,0.25)" : undefined,
               }}
             >
-              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" justifyContent="space-between">
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }} justifyContent="space-between">
                 <Stack spacing={0.5}>
                   <Typography variant="body2" color="text.secondary">
                     {selectedNumbers.length} numeros seleccionados
@@ -398,92 +520,115 @@ const RaffleDetail = () => {
                 <Button
                   variant="contained"
                   size="large"
-                  disabled={selectedNumbers.length === 0}
-                  onClick={() => setShowBuyDialog(true)}
+                  startIcon={reserving ? <CircularProgress size={18} color="inherit" /> : <ShoppingCart />}
+                  disabled={selectedNumbers.length === 0 || reserving}
+                  onClick={handleReserve}
                   sx={{ borderRadius: 999, px: 4 }}
                 >
-                  Comprar numeros
+                  Reservar numeros
                 </Button>
+              </Stack>
+            </SectionCard>
+          )}
+
+          {isLoggedIn && reservation && !purchase && (
+            <SectionCard
+              sx={{
+                background: "linear-gradient(135deg, rgba(255,252,248,0.98), rgba(239,251,248,0.75))",
+                borderColor: "rgba(47,180,154,0.25)",
+              }}
+            >
+              <Stack spacing={2.5}>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <EventAvailable color="secondary" />
+                  <Box>
+                    <Typography variant="h6">Reserva activa</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Expira el {formatDate(reservation.expires_at)}
+                    </Typography>
+                  </Box>
+                </Stack>
+
+                <PurchaseNumbers numbers={reservation.numbers} totalTickets={raffle.total_tickets} />
+
+                <Paper sx={{ p: 2.5, borderRadius: 3, backgroundColor: "rgba(47,180,154,0.06)", border: "1px solid rgba(47,180,154,0.15)" }}>
+                  <Stack spacing={1}>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary">
+                        Total a pagar
+                      </Typography>
+                      <Typography variant="h6" color="primary.main" fontWeight={700}>
+                        {formatCurrency(reservation.total_price, reservation.currency)}
+                      </Typography>
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Stack direction="row" spacing={1} alignItems="center" color="text.secondary">
+                        <AccountBalanceWallet fontSize="small" />
+                        <Typography variant="body2">Saldo demo</Typography>
+                      </Stack>
+                      <Typography variant="body2" fontWeight={600}>
+                        {formatCurrency(balance, reservation.currency)}
+                      </Typography>
+                    </Stack>
+                  </Stack>
+                </Paper>
+
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="flex-end">
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    disabled={releasing || confirming}
+                    onClick={handleRelease}
+                    sx={{ borderRadius: 999 }}
+                  >
+                    Liberar reserva
+                  </Button>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    disabled={confirming || releasing}
+                    onClick={handleConfirm}
+                    startIcon={confirming ? <CircularProgress size={18} color="inherit" /> : <CheckCircle />}
+                    sx={{ borderRadius: 999, px: 4 }}
+                  >
+                    Confirmar compra
+                  </Button>
+                </Stack>
+              </Stack>
+            </SectionCard>
+          )}
+
+          {purchase && (
+            <SectionCard
+              sx={{
+                background: "linear-gradient(135deg, rgba(255,252,248,0.98), rgba(239,251,248,0.75))",
+                borderColor: "rgba(47,180,154,0.25)",
+              }}
+            >
+              <Stack spacing={2.5}>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <CheckCircle color="secondary" />
+                  <Box>
+                    <Typography variant="h6">Compra completada</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Tus numeros quedaron confirmados para esta rifa.
+                    </Typography>
+                  </Box>
+                </Stack>
+                <PurchaseNumbers numbers={purchase.numbers} totalTickets={raffle.total_tickets} />
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }} justifyContent="space-between">
+                  <Typography variant="h6" color="primary.main">
+                    {formatCurrency(purchase.total_price, purchase.currency)}
+                  </Typography>
+                  <Button component={Link} to="/purchases" variant="contained" sx={{ borderRadius: 999, px: 4 }}>
+                    Ver mis compras
+                  </Button>
+                </Stack>
               </Stack>
             </SectionCard>
           )}
         </Stack>
       </Container>
-
-      {/* Buy dialog */}
-      <Dialog open={showBuyDialog} onClose={() => setShowBuyDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ pb: 1 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="h5">Confirmar compra</Typography>
-            <IconButton onClick={() => setShowBuyDialog(false)} size="small">
-              <Close />
-            </IconButton>
-          </Stack>
-        </DialogTitle>
-        <DialogContent>
-          <Stack spacing={3} sx={{ pt: 1 }}>
-            <Stack spacing={1}>
-              <Typography variant="body2" color="text.secondary">
-                Numeros seleccionados:
-              </Typography>
-              <Stack direction="row" spacing={0.8} flexWrap="wrap">
-                {selectedNumbers.map((n) => (
-                  <Chip
-                    key={n}
-                    label={String(n).padStart(raffle.total_tickets > 100 ? 3 : 2, "0")}
-                    size="small"
-                    color="primary"
-                    sx={{ borderRadius: 2 }}
-                  />
-                ))}
-              </Stack>
-            </Stack>
-
-            <Paper sx={{ p: 2.5, borderRadius: 3, backgroundColor: "rgba(47,180,154,0.06)", border: "1px solid rgba(47,180,154,0.15)" }}>
-              <Stack spacing={1}>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography variant="body2" color="text.secondary">
-                    {selectedNumbers.length} x{" "}
-                    {formatCurrency(raffle.ticket_price, raffle.currency)}
-                  </Typography>
-                  <Typography variant="body2" fontWeight={600}>
-                    {formatCurrency(totalPrice, raffle.currency)}
-                  </Typography>
-                </Stack>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography variant="body2" color="text.secondary">
-                    Tarifa de servicio
-                  </Typography>
-                  <Typography variant="body2" fontWeight={600}>
-                    {formatCurrency(0, raffle.currency)}
-                  </Typography>
-                </Stack>
-                <Box sx={{ height: 1, backgroundColor: "divider", my: 0.5 }} />
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography variant="subtitle1" fontWeight={700}>
-                    Total a pagar
-                  </Typography>
-                  <Typography variant="h6" color="primary.main" fontWeight={700}>
-                    {formatCurrency(totalPrice, raffle.currency)}
-                  </Typography>
-                </Stack>
-              </Stack>
-            </Paper>
-
-            <Typography variant="caption" color="text.secondary" sx={{ textAlign: "center" }}>
-              Esta es una compra simulada. No se procesara ningun pago real.
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, pt: 0 }}>
-          <Button onClick={() => setShowBuyDialog(false)} variant="outlined" size="large" sx={{ borderRadius: 999 }}>
-            Cancelar
-          </Button>
-          <Button variant="contained" size="large" onClick={handleBuy} sx={{ borderRadius: 999, px: 4 }}>
-            Confirmar compra
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

@@ -1,21 +1,29 @@
 export const RAFFLE_STATUS_LABELS: Record<string, string> = {
+  open: "Activa",
   active: "Activa",
+  published: "Activa",
+  closed: "Finalizada",
   completed: "Finalizada",
+  drawn: "Sorteada",
   cancelled: "Cancelada",
   draft: "Borrador",
 };
 
+export const isRaffleOpen = (status: string) => ["open", "active", "published"].includes(status);
+
+export const isRaffleCompleted = (status: string) => ["closed", "completed", "drawn"].includes(status);
+
 export const statusChipColor = (status: string) => {
-  switch (status) {
-    case "active":
-      return "success" as const;
-    case "completed":
-      return "info" as const;
-    case "cancelled":
-      return "error" as const;
-    default:
-      return "default" as const;
+  if (isRaffleOpen(status)) {
+    return "success" as const;
   }
+  if (isRaffleCompleted(status)) {
+    return "info" as const;
+  }
+  if (status === "cancelled") {
+    return "error" as const;
+  }
+  return "default" as const;
 };
 
 export const formatDate = (dateString: string | null | undefined) => {

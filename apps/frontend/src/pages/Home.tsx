@@ -30,7 +30,7 @@ import Onboarding from "../components/Onboarding";
 import PageHeader from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { type Raffle } from "../types";
-import { RAFFLE_STATUS_LABELS, formatCurrency, formatDate, statusChipColor } from "../utils";
+import { RAFFLE_STATUS_LABELS, formatCurrency, formatDate, isRaffleCompleted, isRaffleOpen, statusChipColor } from "../utils";
 
 const statusFilters = [
   { value: "all", label: "Todas", icon: <FilterList /> },
@@ -89,7 +89,12 @@ const Home = () => {
 
   const filtered = raffles
     .filter((r) => r.title.toLowerCase().includes(search.toLowerCase()))
-    .filter((r) => (statusFilter === "all" ? true : r.status === statusFilter));
+    .filter((r) => {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "active") return isRaffleOpen(r.status);
+      if (statusFilter === "completed") return isRaffleCompleted(r.status);
+      return r.status === statusFilter;
+    });
 
   return (
     <Box component="main">
@@ -170,7 +175,7 @@ const Home = () => {
               ) : (
                 filtered.map((raffle) => {
                   const progress = (raffle.tickets_sold / raffle.total_tickets) * 100;
-                  const isHot = progress >= 80 && raffle.status === "active";
+                  const isHot = progress >= 80 && isRaffleOpen(raffle.status);
 
                   return (
                     <Paper
@@ -230,7 +235,7 @@ const Home = () => {
                                 {raffle.title}
                               </Typography>
                               <Chip
-                                label={RAFFLE_STATUS_LABELS[raffle.status]}
+                                label={RAFFLE_STATUS_LABELS[raffle.status] || raffle.status}
                                 size="small"
                                 color={statusChipColor(raffle.status)}
                                 sx={{ height: 24, fontSize: "0.75rem" }}
