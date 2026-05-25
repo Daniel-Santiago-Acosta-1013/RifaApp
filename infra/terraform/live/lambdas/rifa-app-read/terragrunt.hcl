@@ -4,18 +4,40 @@ include "root" {
 
 dependency "network" {
   config_path = "../../shared/network"
+  mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs = {
+    private_subnet_ids = ["subnet-00000000000000000"]
+  }
 }
 
 dependency "db" {
   config_path = "../../shared/db"
+  mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs = {
+    client_security_group_id = "sg-00000000000000000"
+    db_reader_endpoint      = "localhost"
+    db_port                 = 5432
+    db_name                 = "rifaapp"
+    db_username             = "appuser"
+    db_secret_arn           = "arn:aws:secretsmanager:us-east-1:000000000000:secret:mock"
+  }
 }
 
 dependency "api" {
   config_path = "../../shared/api"
+  mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs = {
+    api_id            = "mock-api"
+    api_execution_arn = "arn:aws:execute-api:us-east-1:000000000000:mock-api"
+  }
 }
 
 dependency "lambda_layer" {
   config_path = "../../shared/lambda-layer-read"
+  mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs = {
+    layer_arn = "arn:aws:lambda:us-east-1:000000000000:layer:mock:1"
+  }
 }
 
 locals {

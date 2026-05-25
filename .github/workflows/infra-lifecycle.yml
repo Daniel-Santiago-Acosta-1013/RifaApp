@@ -196,12 +196,14 @@ jobs:
 
       - name: Terragrunt destroy (frontend)
         if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
+        continue-on-error: true
         working-directory: infra/terraform/envs/frontend
         run: |
           terragrunt --non-interactive destroy -auto-approve
 
       - name: Terragrunt destroy all (live)
         if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
+        continue-on-error: true
         working-directory: infra/terraform/live
         run: |
           terragrunt --log-level error --non-interactive run --all -- destroy -auto-approve

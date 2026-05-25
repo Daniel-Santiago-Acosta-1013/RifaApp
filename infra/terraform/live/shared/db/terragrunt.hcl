@@ -4,6 +4,11 @@ include "root" {
 
 dependency "network" {
   config_path = "../network"
+  mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs = {
+    vpc_id             = "vpc-00000000000000000"
+    private_subnet_ids = ["subnet-00000000000000000"]
+  }
 }
 
 locals {

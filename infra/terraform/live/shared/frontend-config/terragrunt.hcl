@@ -13,6 +13,10 @@ locals {
 
 dependency "api" {
   config_path = "../api"
+  mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs = {
+    api_invoke_url = "https://example.com"
+  }
 }
 
 terraform {
