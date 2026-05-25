@@ -363,6 +363,22 @@ jobs:
             if [ "$arn" = "arn:aws:s3:::${STATE_BUCKET}" ]; then
               continue
             fi
+            if [[ "$arn" == *":vpc-endpoint/"* ]]; then
+              endpoint_id="${arn##*/}"
+              endpoint_state="$(aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "$endpoint_id" --query 'VpcEndpoints[0].State' --output text 2>/dev/null || true)"
+              if [ -z "$endpoint_state" ] || [ "$endpoint_state" = "None" ] || [ "$endpoint_state" = "deleted" ]; then
+                echo "  Ignoring stale tagged VPC endpoint: $arn"
+                continue
+              fi
+            fi
+            if [[ "$arn" == *":natgateway/"* ]]; then
+              nat_id="${arn##*/}"
+              nat_state="$(aws ec2 describe-nat-gateways --nat-gateway-ids "$nat_id" --query 'NatGateways[0].State' --output text 2>/dev/null || true)"
+              if [ -z "$nat_state" ] || [ "$nat_state" = "None" ] || [ "$nat_state" = "deleted" ]; then
+                echo "  Ignoring stale tagged NAT gateway: $arn"
+                continue
+              fi
+            fi
             echo "  Remaining tagged resource: $arn"
             leftovers=1
           done
