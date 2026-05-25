@@ -249,6 +249,42 @@ jobs:
             aws secretsmanager delete-secret --secret-id "$secret_arn" --force-delete-without-recovery 2>/dev/null || true
           done
 
+          echo "=== Cleaning up residual EC2 network resources ==="
+          endpoint_ids="$(aws ec2 describe-vpc-endpoints --filters "Name=tag:Project,Values=$PROJECT_NAME" "Name=tag:Environment,Values=$ENVIRONMENT" --query 'VpcEndpoints[?State!=`deleted`].VpcEndpointId' --output text 2>/dev/null || true)"
+          if [ -n "$endpoint_ids" ]; then
+            echo "  Deleting VPC endpoints: $endpoint_ids"
+            aws ec2 delete-vpc-endpoints --vpc-endpoint-ids $endpoint_ids || true
+            for attempt in $(seq 1 60); do
+              remaining="$(aws ec2 describe-vpc-endpoints --vpc-endpoint-ids $endpoint_ids --query 'VpcEndpoints[?State!=`deleted`].VpcEndpointId' --output text 2>/dev/null || true)"
+              if [ -z "$remaining" ]; then
+                break
+              fi
+              echo "  Waiting for VPC endpoints to delete: $remaining"
+              sleep 10
+            done
+          fi
+
+          nat_ids="$(aws ec2 describe-nat-gateways --filter "Name=tag:Project,Values=$PROJECT_NAME" "Name=tag:Environment,Values=$ENVIRONMENT" --query 'NatGateways[?State!=`deleted`].NatGatewayId' --output text 2>/dev/null || true)"
+          if [ -n "$nat_ids" ]; then
+            echo "  Deleting NAT gateways: $nat_ids"
+            for nat_id in $nat_ids; do
+              aws ec2 delete-nat-gateway --nat-gateway-id "$nat_id" || true
+            done
+            aws ec2 wait nat-gateway-deleted --nat-gateway-ids $nat_ids || true
+          fi
+
+          for vpc_id in $(aws ec2 describe-vpcs --filters "Name=tag:Project,Values=$PROJECT_NAME" "Name=tag:Environment,Values=$ENVIRONMENT" --query 'Vpcs[].VpcId' --output text 2>/dev/null); do
+            for eni in $(aws ec2 describe-network-interfaces --filters "Name=vpc-id,Values=$vpc_id" --query 'NetworkInterfaces[?Status==`available`].NetworkInterfaceId' --output text 2>/dev/null); do
+              echo "  Deleting available ENI $eni"
+              aws ec2 delete-network-interface --network-interface-id "$eni" || true
+            done
+          done
+
+          for allocation_id in $(aws ec2 describe-addresses --filters "Name=tag:Project,Values=$PROJECT_NAME" "Name=tag:Environment,Values=$ENVIRONMENT" --query 'Addresses[?AssociationId==null].AllocationId' --output text 2>/dev/null); do
+            echo "  Releasing Elastic IP $allocation_id"
+            aws ec2 release-address --allocation-id "$allocation_id" || true
+          done
+
       - name: Verify project resources are gone
         if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
         run: |
