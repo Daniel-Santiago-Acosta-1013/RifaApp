@@ -97,9 +97,6 @@ que el deploy del backend modifique recursos del frontend.
 terragrunt --working-dir infra/terraform/envs/frontend apply
 ```
 
-## Backend API
-La API FastAPI y su documentacion viven en `apps/api/README.md`.
-
 ## Outputs principales
 - `api_url`: URL del API Gateway (stage)
 - `api_base_url`: URL base del API (incluye `/rifaapp`)

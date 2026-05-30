@@ -14,6 +14,7 @@ import {
 import { createRaffle } from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
+import { formatCopInput, getCurrencyDigits } from "../utils";
 
 const CreateRaffle = () => {
   const { user } = useAuth();
@@ -60,6 +61,7 @@ const CreateRaffle = () => {
         draw_at: new Date(formData.draw_date).toISOString(),
         number_start: 0,
         number_padding: null,
+        owner_id: user.id,
       });
       navigate(`/raffles/${raffle.id}`);
     } catch (err) {
@@ -130,11 +132,11 @@ const CreateRaffle = () => {
               <TextField
                 fullWidth
                 label="Precio por numero (COP)"
-                type="number"
-                value={formData.ticket_price}
-                onChange={(e) => setFormData({ ...formData, ticket_price: e.target.value })}
+                value={formatCopInput(formData.ticket_price)}
+                onChange={(e) => setFormData({ ...formData, ticket_price: getCurrencyDigits(e.target.value) })}
                 required
-                placeholder="5000"
+                placeholder="$5.000"
+                slotProps={{ htmlInput: { inputMode: "numeric" } }}
               />
 
               <TextField

@@ -28,19 +28,23 @@ import {
 
 import {
   confirmPurchase,
+  drawRaffle,
   getRaffle,
   getRaffleNumbers,
   releaseReservation,
   reserveNumbers,
+  updateRaffle,
 } from "../api/client";
 import NumberGrid from "../components/NumberGrid";
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
-import { type PurchaseConfirmResponse, type Raffle, type RaffleNumber, type ReservationResponse } from "../types";
+import { type DrawResponse, type PurchaseConfirmResponse, type Raffle, type RaffleNumber, type ReservationResponse } from "../types";
 import {
   RAFFLE_STATUS_LABELS,
+  formatCopInput,
   formatCurrency,
   formatDate,
+  getCurrencyDigits,
   isRaffleCompleted,
   isRaffleOpen,
   statusChipColor,
@@ -96,11 +100,14 @@ const RaffleDetail = () => {
   const [reserving, setReserving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [releasing, setReleasing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [drawing, setDrawing] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [drawResult, setDrawResult] = useState<DrawResponse | null>(null);
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
-    ticket_price: 0,
+    ticket_price: "",
     total_tickets: 0,
     draw_at: "",
   });
@@ -121,7 +128,7 @@ const RaffleDetail = () => {
     setEditForm({
       title: raffleData.title || "",
       description: raffleData.description || "",
-      ticket_price: raffleData.ticket_price ? parseFloat(String(raffleData.ticket_price)) : 0,
+      ticket_price: raffleData.ticket_price ? String(raffleData.ticket_price) : "",
       total_tickets: raffleData.total_tickets || 0,
       draw_at: raffleData.draw_at ? new Date(raffleData.draw_at).toISOString().split("T")[0] : "",
     });
@@ -168,6 +175,7 @@ const RaffleDetail = () => {
     : selectedNumbers.length * parseFloat(String(raffle.ticket_price));
   const reservedNumbers = reservation?.numbers ?? purchase?.numbers ?? [];
   const canSelectNumbers = raffleOpen && isLoggedIn && !reservation && !purchase;
+  const isOwner = !!user && raffle.owner_id === user.id;
 
   const refreshNumbers = async () => {
     try {
@@ -255,9 +263,61 @@ const RaffleDetail = () => {
     }
   };
 
-  const handleSave = () => {
-    setEditing(false);
-    alert("Cambios guardados (simulado).");
+  const handleSave = async () => {
+    if (!raffleId || !user) return;
+
+    setSaving(true);
+    setPurchaseError("");
+    try {
+      const updated = await updateRaffle(
+        raffleId,
+        {
+          title: editForm.title,
+          description: editForm.description || null,
+          ticket_price: Number(editForm.ticket_price),
+          total_tickets: Number(editForm.total_tickets),
+          draw_at: editForm.draw_at ? new Date(editForm.draw_at).toISOString() : null,
+        },
+        user.id,
+      );
+      setRaffle(updated);
+      setEditing(false);
+      await refreshNumbers();
+    } catch (err) {
+      setPurchaseError(err instanceof Error ? err.message : "No se pudieron guardar los cambios.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDraw = async () => {
+    if (!raffleId) return;
+
+    setDrawing(true);
+    setPurchaseError("");
+    try {
+      const result = await drawRaffle(raffleId);
+      setDrawResult(result);
+      await refreshNumbers();
+    } catch (err) {
+      setPurchaseError(err instanceof Error ? err.message : "No se pudo sortear la rifa.");
+    } finally {
+      setDrawing(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: raffle.title, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setPurchaseError("");
+    } catch {
+      setPurchaseError("No se pudo compartir el enlace.");
+    }
   };
 
   return (
@@ -362,32 +422,51 @@ const RaffleDetail = () => {
             </Stack>
           </Paper>
 
-          {isLoggedIn && (
-            <Stack direction="row" spacing={1.5}>
-              <Button
-                variant="outlined"
-                startIcon={<Edit />}
-                onClick={() => setEditing(!editing)}
-                size="large"
-                sx={{ borderRadius: 999 }}
-              >
-                {editing ? "Cancelar edicion" : "Editar rifa"}
-              </Button>
-              {raffleOpen && (
-                <Button variant="contained" size="large" sx={{ borderRadius: 999 }}>
-                  Sortear ganador
+          <Stack direction="row" spacing={1.5}>
+            {isOwner && (
+              <>
+                <Button
+                  variant="outlined"
+                  startIcon={<Edit />}
+                  onClick={() => setEditing(!editing)}
+                  size="large"
+                  sx={{ borderRadius: 999 }}
+                >
+                  {editing ? "Cancelar edicion" : "Editar rifa"}
                 </Button>
-              )}
-              <Button variant="outlined" startIcon={<Share />} size="large" sx={{ borderRadius: 999, ml: "auto" }}>
-                Compartir
-              </Button>
-            </Stack>
-          )}
+                {raffleOpen && (
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={handleDraw}
+                    disabled={drawing}
+                    sx={{ borderRadius: 999 }}
+                  >
+                    {drawing ? "Sorteando..." : "Sortear ganador"}
+                  </Button>
+                )}
+              </>
+            )}
+            <Button
+              variant="outlined"
+              startIcon={<Share />}
+              size="large"
+              onClick={handleShare}
+              sx={{ borderRadius: 999, ml: "auto" }}
+            >
+              Compartir
+            </Button>
+          </Stack>
 
-          {isLoggedIn && editing && (
+          {isOwner && editing && (
             <SectionCard>
               <Stack spacing={3}>
                 <Typography variant="h6">Editar rifa</Typography>
+                {purchaseError && (
+                  <Alert severity="error" sx={{ borderRadius: 2 }}>
+                    {purchaseError}
+                  </Alert>
+                )}
                 <TextField
                   fullWidth
                   label="Titulo"
@@ -405,11 +484,12 @@ const RaffleDetail = () => {
                 <TextField
                   fullWidth
                   label="Precio por numero (COP)"
-                  type="number"
-                  value={editForm.ticket_price}
+                  value={formatCopInput(editForm.ticket_price)}
                   onChange={(e) =>
-                    setEditForm({ ...editForm, ticket_price: Number(e.target.value) })
+                    setEditForm({ ...editForm, ticket_price: getCurrencyDigits(e.target.value) })
                   }
+                  placeholder="$5.000"
+                  slotProps={{ htmlInput: { inputMode: "numeric" } }}
                 />
                 <TextField
                   fullWidth
@@ -429,8 +509,8 @@ const RaffleDetail = () => {
                   slotProps={{ inputLabel: { shrink: true } }}
                 />
                 <Stack direction="row" spacing={1.5}>
-                  <Button variant="contained" startIcon={<Save />} onClick={handleSave} size="large">
-                    Guardar cambios
+                  <Button variant="contained" startIcon={<Save />} onClick={handleSave} disabled={saving} size="large">
+                    {saving ? "Guardando..." : "Guardar cambios"}
                   </Button>
                   <Button variant="outlined" onClick={() => setEditing(false)} size="large">
                     Cancelar
@@ -438,6 +518,12 @@ const RaffleDetail = () => {
                 </Stack>
               </Stack>
             </SectionCard>
+          )}
+
+          {drawResult && (
+            <Alert severity="success" sx={{ borderRadius: 2 }}>
+              Numero ganador: {String(drawResult.winning_number).padStart(raffle.total_tickets > 100 ? 3 : 2, "0")}
+            </Alert>
           )}
 
           <SectionCard>

@@ -40,9 +40,24 @@ export const formatDate = (dateString: string | null | undefined) => {
 
 export const formatCurrency = (amount: number | string, currency = "COP") => {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  if (!Number.isFinite(num)) {
+    return "";
+  }
+  if (currency === "COP") {
+    return `$${new Intl.NumberFormat("es-CO", {
+      maximumFractionDigits: 0,
+    }).format(num)}`;
+  }
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
   }).format(num);
+};
+
+export const getCurrencyDigits = (value: string) => value.replace(/\D/g, "");
+
+export const formatCopInput = (value: string | number) => {
+  const digits = getCurrencyDigits(String(value));
+  return digits ? formatCurrency(Number(digits), "COP") : "";
 };

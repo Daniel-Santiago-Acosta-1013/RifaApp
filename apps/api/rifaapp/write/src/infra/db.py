@@ -6,7 +6,6 @@ from typing import Callable, Optional
 import pg8000.dbapi as pgapi
 
 from rifaapp.shared.core.config import db_configured, settings
-from rifaapp.write.src.infra.migrations import ensure_migrations
 
 _DB_LOCAL = threading.local()
 
@@ -38,8 +37,6 @@ def get_conn():
             conn = _connect()
             conn.autocommit = True
             _DB_LOCAL.conn = conn
-    if settings.auto_migrate:
-        ensure_migrations()
     return conn
 
 
@@ -70,8 +67,6 @@ def run_transaction(handler: Callable):
     conn = _connect()
     try:
         conn.autocommit = False
-        if settings.auto_migrate:
-            ensure_migrations()
         result = handler(conn)
         conn.commit()
         return result

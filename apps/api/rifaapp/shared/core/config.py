@@ -49,7 +49,6 @@ class Settings:
     db_name: str = os.getenv("DB_NAME", "")
     db_user: str = os.getenv("DB_USER", "")
     _db_password_lazy: _LazyPassword = field(default_factory=_LazyPassword, repr=False)
-    auto_migrate: bool = _as_bool(os.getenv("AUTO_MIGRATE", "false"))
     cors_allow_origins: list[str] = field(
         default_factory=lambda: _split_csv(os.getenv("CORS_ALLOW_ORIGINS", "*"))
     )

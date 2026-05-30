@@ -129,19 +129,48 @@ def update_raffle(raffle_id: uuid.UUID, payload: RaffleUpdate, actor_id: Optiona
 
     def _handler(conn):
         cur = conn.cursor()
-        cur.execute("SELECT owner_id FROM write.raffles WHERE id = %s FOR UPDATE", (raffle_id,))
+        cur.execute(
+            """
+            SELECT owner_id, number_start, total_tickets, number_padding
+            FROM write.raffles
+            WHERE id = %s
+            FOR UPDATE
+            """,
+            (raffle_id,),
+        )
         row = cur.fetchone()
         if not row:
             cur.close()
             raise HTTPException(status_code=404, detail="Raffle not found")
-        owner_id = row[0]
+        owner_id, number_start, current_total_tickets, number_padding = row
         if owner_id is None or owner_id != editor_id:
             cur.close()
             raise HTTPException(status_code=403, detail="Not allowed to edit this raffle")
 
+        if "total_tickets" in data:
+            next_total_tickets = data["total_tickets"]
+            normalized_number_start = 1 if number_start is None else number_start
+            next_number_end = normalized_number_start + next_total_tickets - 1
+            cur.execute(
+                """
+                SELECT MAX(number)
+                FROM write.tickets
+                WHERE raffle_id = %s
+                  AND status IN ('reserved', 'sold', 'paid')
+                """,
+                (raffle_id,),
+            )
+            max_taken_number = cur.fetchone()[0]
+            if max_taken_number is not None and max_taken_number > next_number_end:
+                cur.close()
+                raise HTTPException(
+                    status_code=400,
+                    detail="Total tickets cannot be lower than assigned numbers",
+                )
+
         set_clauses = []
         params: list = []
-        for field in ("title", "description", "draw_at", "status"):
+        for field in ("title", "description", "ticket_price", "total_tickets", "draw_at", "status"):
             if field in data:
                 set_clauses.append(f"{field} = %s")
                 params.append(data[field])
@@ -149,6 +178,58 @@ def update_raffle(raffle_id: uuid.UUID, payload: RaffleUpdate, actor_id: Optiona
         params.append(raffle_id)
         set_clause = ", ".join(set_clauses)
         cur.execute(f"UPDATE write.raffles SET {set_clause} WHERE id = %s", params)
+
+        if "total_tickets" in data:
+            normalized_number_start = 1 if number_start is None else number_start
+            previous_number_end = normalized_number_start + current_total_tickets - 1
+            next_number_end = normalized_number_start + data["total_tickets"] - 1
+            if next_number_end > previous_number_end:
+                cur.execute(
+                    """
+                    INSERT INTO read.raffle_numbers (
+                        raffle_id,
+                        number,
+                        status,
+                        reserved_until,
+                        reservation_id,
+                        purchase_id,
+                        participant_id,
+                        label,
+                        updated_at
+                    )
+                    SELECT %s,
+                           n,
+                           'available',
+                           NULL,
+                           NULL,
+                           NULL,
+                           NULL,
+                           CASE
+                               WHEN %s::int IS NULL THEN n::text
+                               ELSE lpad(n::text, %s::int, '0')
+                           END,
+                           now()
+                    FROM generate_series(%s::int, %s::int) AS n
+                    ON CONFLICT (raffle_id, number) DO NOTHING
+                    """,
+                    (
+                        raffle_id,
+                        number_padding,
+                        number_padding,
+                        previous_number_end + 1,
+                        next_number_end,
+                    ),
+                )
+            elif next_number_end < previous_number_end:
+                cur.execute(
+                    """
+                    DELETE FROM read.raffle_numbers
+                    WHERE raffle_id = %s
+                      AND number > %s
+                      AND status = 'available'
+                    """,
+                    (raffle_id, next_number_end),
+                )
 
         cur.execute(
             """

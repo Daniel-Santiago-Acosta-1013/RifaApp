@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
@@ -17,6 +15,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - rifaapp-network
+
+  migrate:
+    image: sqitch/sqitch:latest
+    profiles:
+      - tools
+    working_dir: /repo
+    volumes:
+      - ./apps/api/rifaapp/db:/repo:ro
+    environment:
+      PGPASSWORD: apppassword
+    command: deploy db:pg://appuser@db:5432/rifaapp
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - rifaapp-network
 

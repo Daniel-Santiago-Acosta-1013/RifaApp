@@ -11,7 +11,7 @@ export type RaffleCreate = {
   ticket_price: number;
   currency: string;
   total_tickets: number;
-  draw_at?: string;
+  draw_at: string;
   number_start: number;
   number_padding?: number | null;
   status?: string;
@@ -21,6 +21,8 @@ export type RaffleCreate = {
 export type RaffleUpdate = {
   title?: string;
   description?: string | null;
+  ticket_price?: number;
+  total_tickets?: number;
   draw_at?: string | null;
   status?: string;
 };
@@ -99,6 +101,13 @@ export type PurchaseConfirmResponse = {
   currency: string;
   status: string;
   created_at: string;
+};
+
+export type DrawResponse = {
+  raffle_id: string;
+  winner_ticket_id: string;
+  winner_participant_id: string;
+  winning_number: number;
 };
 
 export type Purchase = {

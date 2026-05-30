@@ -30,48 +30,24 @@ Monorepositorio de RifaApp. Contiene el backend (FastAPI + Lambda), el frontend 
 
 ## Desarrollo local
 
-### Backend
-
 ```bash
-cd apps/api
-uv sync --extra dev
-uv run uvicorn rifaapp.write.src.entrypoints.api:app --reload --host 0.0.0.0 --port 8000
+task db
+task db:migrate
+task api
+task frontend
 ```
 
-### Frontend
+## Comandos locales
 
-```bash
-cd apps/frontend
-npm install
-npm run dev
-```
-
-## Build y deploy
-
-### Con Task
-
-```bash
-# Build de Lambdas
-task build:api
-
-# Deploy de infraestructura
-task deploy
-
-# Plan de infra
-task infra:live:plan
-```
-
-### Manual
-
-Ver los READMEs específicos:
-- [`apps/api/README.md`](apps/api/README.md)
-- [`apps/frontend/README.md`](apps/frontend/README.md)
-- [`infra/README.md`](infra/README.md)
+- `task db`: levanta PostgreSQL local.
+- `task db:migrate`: aplica migraciones con Sqitch en Docker.
+- `task api`: levanta API write en `8000` y read en `8001`.
+- `task frontend`: levanta Vite.
 
 ## Docker Compose
 
 ```bash
-docker compose up --build
+docker compose up -d db
 ```
 
 ## Licencia

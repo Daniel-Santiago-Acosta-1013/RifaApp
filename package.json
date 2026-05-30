@@ -6,12 +6,9 @@
     "apps/frontend"
   ],
   "scripts": {
-    "dev:api": "cd apps/api && uv run uvicorn rifaapp.write.src.entrypoints.api:app --reload --host 0.0.0.0 --port 8000",
-    "dev:frontend": "cd apps/frontend && npm run dev",
-    "build:api": "cd apps/api && ./scripts/build_lambda.sh",
-    "build:frontend": "cd apps/frontend && npm run build",
-    "test:api": "cd apps/api && uv run python -m pytest",
-    "test:frontend": "cd apps/frontend && npm run test:e2e",
-    "lint:frontend": "cd apps/frontend && npm run lint"
+    "db": "task db",
+    "db:migrate": "task db:migrate",
+    "api": "task api",
+    "frontend": "task frontend"
   }
 }

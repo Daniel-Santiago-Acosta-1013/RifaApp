@@ -54,7 +54,7 @@ class RaffleCreate(BaseModel):
     ticket_price: Decimal = Field(..., gt=0)
     currency: str = Field("COP", min_length=3, max_length=3)
     total_tickets: int = Field(..., gt=0, le=100000)
-    draw_at: Optional[datetime] = None
+    draw_at: datetime
     number_start: int = Field(1, ge=0)
     number_padding: Optional[int] = Field(None, ge=1, le=6)
     status: Optional[str] = Field("open", max_length=20)
@@ -64,6 +64,8 @@ class RaffleCreate(BaseModel):
 class RaffleUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=3, max_length=120)
     description: Optional[str] = Field(None, max_length=1000)
+    ticket_price: Optional[Decimal] = Field(None, gt=0)
+    total_tickets: Optional[int] = Field(None, gt=0, le=100000)
     draw_at: Optional[datetime] = None
     status: Optional[str] = Field(None, max_length=20)
 

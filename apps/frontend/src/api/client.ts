@@ -2,6 +2,7 @@ import type {
   Purchase,
   PurchaseConfirmRequest,
   PurchaseConfirmResponse,
+  DrawResponse,
   RaffleCreate,
   RaffleUpdate,
   RaffleNumbersResponse,
@@ -148,6 +149,11 @@ export const releaseReservation = (raffleId: string, reservation_id: string) =>
   request<{ status: string; released: number }>(API_WRITE_BASE_URL, `/raffles/${raffleId}/release`, {
     method: "POST",
     body: JSON.stringify({ reservation_id }),
+  });
+
+export const drawRaffle = (raffleId: string) =>
+  request<DrawResponse>(API_WRITE_BASE_URL, `/raffles/${raffleId}/draw`, {
+    method: "POST",
   });
 
 export const listPurchases = (participantId: string) =>
