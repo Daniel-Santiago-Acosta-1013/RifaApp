@@ -4,7 +4,7 @@ data "aws_caller_identity" "current" {}
 locals {
   lambda_name                 = "${var.name_prefix}-realtime"
   websocket_api_name          = "${var.name_prefix}-realtime-ws"
-  websocket_stage_path        = var.api_stage_name == "$default" ? "" : "/${var.api_stage_name}"
+  websocket_stage_path        = "/${var.api_stage_name}"
   websocket_client_url        = "${aws_apigatewayv2_api.websocket.api_endpoint}${local.websocket_stage_path}"
   websocket_management_url    = "${replace(aws_apigatewayv2_api.websocket.api_endpoint, "wss://", "https://")}${local.websocket_stage_path}"
   manage_connections_resource = "${aws_apigatewayv2_api.websocket.execution_arn}/*/*/@connections/*"
