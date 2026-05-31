@@ -2,6 +2,11 @@ name: Deploy Frontend
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/frontend/**'
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}

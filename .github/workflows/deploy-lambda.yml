@@ -18,6 +18,11 @@ on:
         required: true
         default: "main"
         type: string
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/api/**'
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
@@ -28,6 +33,8 @@ env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
   TG_NON_INTERACTIVE: "true"
+  BACKEND_REF: ${{ github.event.inputs.backend_ref || github.sha }}
+  LAMBDA_TARGET: ${{ github.event.inputs.lambda_target || 'both' }}
 
 concurrency:
   group: rifaapp-lambda-deploy
@@ -45,7 +52,7 @@ jobs:
       - name: Checkout monorepo
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.backend_ref }}
+          ref: ${{ env.BACKEND_REF }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -87,17 +94,17 @@ jobs:
 
       - name: Apply lambdas only
         run: |
-          if [ "${{ inputs.lambda_target }}" = "none" ]; then
+          if [ "$LAMBDA_TARGET" = "none" ]; then
             echo "lambda_target is none; skipping apply."
             exit 0
           fi
-          if [ "${{ inputs.lambda_target }}" = "read" ] || [ "${{ inputs.lambda_target }}" = "both" ]; then
+          if [ "$LAMBDA_TARGET" = "read" ] || [ "$LAMBDA_TARGET" = "both" ]; then
             echo "Applying read lambda..."
             pushd infra/terraform/live/lambdas/rifa-app-read
             terragrunt --non-interactive apply -auto-approve
             popd
           fi
-          if [ "${{ inputs.lambda_target }}" = "write" ] || [ "${{ inputs.lambda_target }}" = "both" ]; then
+          if [ "$LAMBDA_TARGET" = "write" ] || [ "$LAMBDA_TARGET" = "both" ]; then
             echo "Applying write lambda..."
             pushd infra/terraform/live/lambdas/rifa-app-write
             terragrunt --non-interactive apply -auto-approve

@@ -3,6 +3,11 @@ export const formatMoney = (value: string | number, currency = "COP") => {
   if (!Number.isFinite(numeric)) {
     return `${value} ${currency}`;
   }
+  if (currency === "COP") {
+    return `$${new Intl.NumberFormat("es-CO", {
+      maximumFractionDigits: 0,
+    }).format(numeric)}`;
+  }
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
     currency,
