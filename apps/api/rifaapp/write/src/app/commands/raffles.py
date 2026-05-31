@@ -15,6 +15,7 @@ from rifaapp.shared.models.schemas import (
     RaffleUpdate,
     ReservationRequest,
 )
+from rifaapp.shared.realtime import publish_raffle_numbers_changed
 
 MAX_RESERVATION_MINUTES = 30
 
@@ -381,7 +382,16 @@ def reserve_numbers(raffle_id: uuid.UUID, payload: ReservationRequest) -> dict:
             "total_price": total_price,
         }
 
-    return run_transaction(_handler)
+    result = run_transaction(_handler)
+    publish_raffle_numbers_changed(
+        raffle_id=str(raffle_id),
+        event="reserved",
+        numbers=result["numbers"],
+        status="reserved",
+        reserved_until=result["expires_at"].isoformat(),
+        reservation_id=result["reservation_id"],
+    )
+    return result
 
 
 def confirm_purchase(raffle_id: uuid.UUID, payload: PurchaseConfirmRequest) -> dict:
@@ -485,7 +495,15 @@ def confirm_purchase(raffle_id: uuid.UUID, payload: PurchaseConfirmRequest) -> d
             "created_at": created_at,
         }
 
-    return run_transaction(_handler)
+    result = run_transaction(_handler)
+    publish_raffle_numbers_changed(
+        raffle_id=str(raffle_id),
+        event="sold",
+        numbers=result["numbers"],
+        status="sold",
+        purchase_id=result["purchase_id"],
+    )
+    return result
 
 
 def release_reservation(raffle_id: uuid.UUID, reservation_id: str) -> dict:
@@ -503,9 +521,18 @@ def release_reservation(raffle_id: uuid.UUID, reservation_id: str) -> dict:
         released_numbers = [row[0] for row in rows]
         released = len(released_numbers)
         cur.close()
-        return {"status": "released", "released": released}
+        return {"status": "released", "released": released, "numbers": released_numbers}
 
-    return run_transaction(_handler)
+    result = run_transaction(_handler)
+    if result["numbers"]:
+        publish_raffle_numbers_changed(
+            raffle_id=str(raffle_id),
+            event="released",
+            numbers=result["numbers"],
+            status="available",
+            reservation_id=reservation_id,
+        )
+    return {"status": result["status"], "released": result["released"]}
 
 
 def draw_raffle(raffle_id: uuid.UUID) -> dict:

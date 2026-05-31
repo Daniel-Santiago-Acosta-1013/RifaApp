@@ -16,3 +16,10 @@ resource "aws_ssm_parameter" "api_write_url" {
   value = "${local.base_url}/rifa-app-write"
   tags  = var.tags
 }
+
+resource "aws_ssm_parameter" "realtime_websocket_url" {
+  name  = "/${var.project_name}/${var.environment}/realtime-websocket-url"
+  type  = "String"
+  value = var.realtime_websocket_url
+  tags  = var.tags
+}

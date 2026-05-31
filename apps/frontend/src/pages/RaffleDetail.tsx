@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   AccountBalanceWallet,
@@ -35,6 +35,7 @@ import {
   reserveNumbers,
   updateRaffle,
 } from "../api/client";
+import { getRealtimeWebsocketUrl, type RaffleNumbersChangedEvent } from "../api/realtime";
 import NumberGrid from "../components/NumberGrid";
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
@@ -104,6 +105,7 @@ const RaffleDetail = () => {
   const [drawing, setDrawing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [drawResult, setDrawResult] = useState<DrawResponse | null>(null);
+  const refreshTimerRef = useRef<number | null>(null);
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
@@ -143,6 +145,85 @@ const RaffleDetail = () => {
       })
       .finally(() => setLoading(false));
   }, [loadRaffle]);
+
+  const scheduleRealtimeRefresh = useCallback(() => {
+    if (refreshTimerRef.current) {
+      window.clearTimeout(refreshTimerRef.current);
+    }
+    refreshTimerRef.current = window.setTimeout(() => {
+      loadRaffle().catch(() => {
+        // El siguiente evento o refresco manual vuelve a sincronizar la grilla.
+      });
+    }, 350);
+  }, [loadRaffle]);
+
+  useEffect(() => {
+    if (!raffleId) return undefined;
+
+    const realtimeUrl = getRealtimeWebsocketUrl();
+    if (!realtimeUrl) return undefined;
+
+    let socket: WebSocket | null = null;
+    let reconnectTimer: number | null = null;
+    let closedByPage = false;
+
+    const connect = () => {
+      socket = new WebSocket(realtimeUrl);
+
+      socket.addEventListener("open", () => {
+        socket?.send(JSON.stringify({ action: "subscribe", raffle_id: raffleId }));
+      });
+
+      socket.addEventListener("message", (message) => {
+        let event: RaffleNumbersChangedEvent;
+        try {
+          event = JSON.parse(String(message.data));
+        } catch {
+          return;
+        }
+
+        if (event.type !== "raffle_numbers_changed" || event.raffle_id !== raffleId) {
+          return;
+        }
+
+        const changedNumbers = new Set(event.numbers);
+        setNumbers((current) =>
+          current.map((item) =>
+            changedNumbers.has(item.number)
+              ? {
+                  ...item,
+                  status: event.status,
+                  reserved_until: event.status === "reserved" ? event.reserved_until || null : null,
+                }
+              : item,
+          ),
+        );
+        if (event.status !== "available") {
+          setSelectedNumbers((current) => current.filter((number) => !changedNumbers.has(number)));
+        }
+        scheduleRealtimeRefresh();
+      });
+
+      socket.addEventListener("close", () => {
+        if (!closedByPage) {
+          reconnectTimer = window.setTimeout(connect, 1500);
+        }
+      });
+    };
+
+    connect();
+
+    return () => {
+      closedByPage = true;
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+      }
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+      socket?.close();
+    };
+  }, [raffleId, scheduleRealtimeRefresh]);
 
   if (loading) {
     return (

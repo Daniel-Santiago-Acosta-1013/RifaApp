@@ -13,6 +13,12 @@ variable "api_invoke_url" {
   type        = string
 }
 
+variable "realtime_websocket_url" {
+  description = "URL WebSocket para eventos realtime del frontend"
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Tags para los recursos"
   type        = map(string)

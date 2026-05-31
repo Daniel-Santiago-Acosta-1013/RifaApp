@@ -61,6 +61,9 @@ jobs:
           write_url=$(aws ssm get-parameter \
             --name "/rifaapp/dev/api-write-url" \
             --query "Parameter.Value" --output text)
+          realtime_url=$(aws ssm get-parameter \
+            --name "/rifaapp/dev/realtime-websocket-url" \
+            --query "Parameter.Value" --output text 2>/dev/null || true)
 
           if [ -z "$read_url" ] || [ -z "$write_url" ]; then
             echo "VITE_API_READ_BASE_URL or VITE_API_WRITE_BASE_URL missing in Parameter Store" >&2
@@ -69,6 +72,7 @@ jobs:
 
           echo "read_url=$read_url" >> "$GITHUB_OUTPUT"
           echo "write_url=$write_url" >> "$GITHUB_OUTPUT"
+          echo "realtime_url=$realtime_url" >> "$GITHUB_OUTPUT"
           echo "Config loaded from Parameter Store"
 
       - name: Apply frontend infra
@@ -111,6 +115,7 @@ jobs:
         env:
           VITE_API_READ_BASE_URL: ${{ steps.config.outputs.read_url }}
           VITE_API_WRITE_BASE_URL: ${{ steps.config.outputs.write_url }}
+          VITE_REALTIME_WS_URL: ${{ steps.config.outputs.realtime_url }}
         working-directory: apps/frontend
         run: npm run build
 

@@ -53,6 +53,16 @@ variable "db_secret_arn" {
   default = ""
 }
 
+variable "realtime_connections_table_arn" {
+  type    = string
+  default = ""
+}
+
+variable "realtime_websocket_execution_arn" {
+  type    = string
+  default = ""
+}
+
 variable "api_id" {
   type = string
 }

@@ -48,6 +48,36 @@ resource "aws_iam_role_policy" "lambda_secrets" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_realtime" {
+  count = var.realtime_connections_table_arn != "" && var.realtime_websocket_execution_arn != "" ? 1 : 0
+  name  = "${var.lambda_name}-realtime"
+  role  = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:DeleteItem",
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          var.realtime_connections_table_arn,
+          "${var.realtime_connections_table_arn}/index/*"
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["execute-api:ManageConnections"]
+        Resource = "${var.realtime_websocket_execution_arn}/*/*/@connections/*"
+      }
+    ]
+  })
+}
+
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = "/aws/lambda/${var.lambda_name}"
   retention_in_days = var.lambda_log_retention

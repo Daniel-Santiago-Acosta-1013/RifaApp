@@ -100,6 +100,8 @@ jobs:
           echo "def handler(event,context):return{}" > infra/backend/lambda_dist/read/index.py
           mkdir -p infra/backend/lambda_dist/write
           echo "def handler(event,context):return{}" > infra/backend/lambda_dist/write/index.py
+          mkdir -p infra/backend/lambda_dist/realtime
+          echo "def handler(event,context):return{}" > infra/backend/lambda_dist/realtime/index.py
           mkdir -p infra/backend/lambda_dist/layer-read/python
           touch infra/backend/lambda_dist/layer-read/python/.gitkeep
           mkdir -p infra/backend/lambda_dist/layer-write/python
@@ -244,6 +246,18 @@ jobs:
             echo "  Deleting HTTP API $api_id"
             aws apigatewayv2 delete-api --api-id "$api_id" || true
           done
+          echo "=== Cleaning up API Gateway WebSocket APIs ==="
+          for api_id in $(aws apigatewayv2 get-apis --query "Items[?Name==\`${NAME_PREFIX}-realtime-ws\`].ApiId" --output text 2>/dev/null); do
+            echo "  Deleting WebSocket API $api_id"
+            aws apigatewayv2 delete-api --api-id "$api_id" || true
+          done
+
+          echo "=== Cleaning up DynamoDB realtime tables ==="
+          for table_name in $(aws dynamodb list-tables --query "TableNames[?starts_with(@, \`${NAME_PREFIX}-realtime-\`)]" --output text 2>/dev/null); do
+            echo "  Deleting DynamoDB table $table_name"
+            aws dynamodb delete-table --table-name "$table_name" || true
+            aws dynamodb wait table-not-exists --table-name "$table_name" || true
+          done
 
           echo "=== Cleaning up tagged Secrets Manager secrets ==="
           for secret_arn in $(aws resourcegroupstaggingapi get-resources --tag-filters Key=Project,Values="$PROJECT_NAME" Key=Environment,Values="$ENVIRONMENT" --query 'ResourceTagMappingList[?contains(ResourceARN, `:secret:`)].ResourceARN' --output text 2>/dev/null); do
@@ -359,6 +373,17 @@ jobs:
           echo "=== Project HTTP APIs ==="
           for api_id in $(aws apigatewayv2 get-apis --query "Items[?Name==\`${NAME_PREFIX}-http-api\`].ApiId" --output text 2>/dev/null); do
             echo "  Remaining HTTP API: $api_id"
+            leftovers=1
+          done
+          echo "=== Project WebSocket APIs ==="
+          for api_id in $(aws apigatewayv2 get-apis --query "Items[?Name==\`${NAME_PREFIX}-realtime-ws\`].ApiId" --output text 2>/dev/null); do
+            echo "  Remaining WebSocket API: $api_id"
+            leftovers=1
+          done
+
+          echo "=== Project DynamoDB tables ==="
+          for table_name in $(aws dynamodb list-tables --query "TableNames[?starts_with(@, \`${NAME_PREFIX}-realtime-\`)]" --output text 2>/dev/null); do
+            echo "  Remaining DynamoDB table: $table_name"
             leftovers=1
           done
 

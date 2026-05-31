@@ -12,10 +12,18 @@ locals {
 }
 
 dependency "api" {
-  config_path = "../api"
+  config_path                             = "../api"
   mock_outputs_allowed_terraform_commands = ["destroy"]
   mock_outputs = {
     api_invoke_url = "https://example.com"
+  }
+}
+
+dependency "realtime" {
+  config_path                             = "../realtime"
+  mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs = {
+    websocket_client_url = "wss://example.com"
   }
 }
 
@@ -24,8 +32,9 @@ terraform {
 }
 
 inputs = {
-  project_name   = local.project_name
-  environment    = local.environment
-  api_invoke_url = dependency.api.outputs.api_invoke_url
-  tags           = local.tags
+  project_name           = local.project_name
+  environment            = local.environment
+  api_invoke_url         = dependency.api.outputs.api_invoke_url
+  realtime_websocket_url = dependency.realtime.outputs.websocket_client_url
+  tags                   = local.tags
 }

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       lambda_target:
-        description: "Target lambda(s) to deploy (both, read, write, none)"
+        description: "Target lambda(s) to deploy (both, read, write, realtime, none)"
         required: true
         default: "both"
         type: choice
@@ -12,6 +12,7 @@ on:
           - both
           - read
           - write
+          - realtime
           - none
       backend_ref:
         description: "Ref del backend (branch o tag)"
@@ -101,6 +102,12 @@ jobs:
           if [ "$LAMBDA_TARGET" = "read" ] || [ "$LAMBDA_TARGET" = "both" ]; then
             echo "Applying read lambda..."
             pushd infra/terraform/live/lambdas/rifa-app-read
+            terragrunt --non-interactive apply -auto-approve
+            popd
+          fi
+          if [ "$LAMBDA_TARGET" = "realtime" ] || [ "$LAMBDA_TARGET" = "both" ]; then
+            echo "Applying realtime lambda..."
+            pushd infra/terraform/live/shared/realtime
             terragrunt --non-interactive apply -auto-approve
             popd
           fi

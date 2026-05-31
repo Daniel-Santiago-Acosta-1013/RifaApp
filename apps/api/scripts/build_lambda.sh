@@ -11,6 +11,7 @@
 # Salida:
 #   lambda_dist/read  (rifaapp/shared + rifaapp/read)
 #   lambda_dist/write (rifaapp/shared + rifaapp/write + rifaapp/db)
+#   lambda_dist/realtime (rifaapp/realtime)
 #   lambda_dist/layer-read  (dependencies in python/)
 #   lambda_dist/layer-write (dependencies in python/)
 
@@ -79,3 +80,9 @@ cp "$ROOT/rifaapp/__init__.py" "$WRITE_DIR/rifaapp/__init__.py"
 cp -R "$ROOT/rifaapp/shared" "$WRITE_DIR/rifaapp/"
 cp -R "$ROOT/rifaapp/write" "$WRITE_DIR/rifaapp/"
 cp -R "$ROOT/rifaapp/db" "$WRITE_DIR/rifaapp/"
+
+# Construir Lambda realtime WebSocket.
+REALTIME_DIR="$BUILD_DIR/realtime"
+mkdir -p "$REALTIME_DIR/rifaapp"
+cp "$ROOT/rifaapp/__init__.py" "$REALTIME_DIR/rifaapp/__init__.py"
+cp -R "$ROOT/rifaapp/realtime" "$REALTIME_DIR/rifaapp/"
