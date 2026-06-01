@@ -117,14 +117,15 @@ jobs:
             fi
           done
 
-          echo "Checking for project RDS snapshots, Lambda layers, and API Gateway APIs..."
+          echo "Checking for project RDS snapshots, Lambda layers, API Gateway APIs, Cognito, and DynamoDB..."
           snapshots="$(aws rds describe-db-cluster-snapshots --snapshot-type manual --query "DBClusterSnapshots[?starts_with(DBClusterSnapshotIdentifier, \`${name_prefix}-aurora\`)].DBClusterSnapshotIdentifier" --output text 2>/dev/null || true)"
           layers="$(aws lambda list-layers --query "Layers[?starts_with(LayerName, \`${name_prefix}\`)].LayerName" --output text 2>/dev/null || true)"
           apis="$(aws apigatewayv2 get-apis --query "Items[?Name==\`${name_prefix}-http-api\`].ApiId" --output text 2>/dev/null || true)"
           websocket_apis="$(aws apigatewayv2 get-apis --query "Items[?Name==\`${name_prefix}-realtime-ws\`].ApiId" --output text 2>/dev/null || true)"
+          cognito_user_pools="$(aws cognito-idp list-user-pools --max-results 60 --query "UserPools[?Name==\`${name_prefix}-users\`].Id" --output text 2>/dev/null || true)"
           dynamodb_tables="$(aws dynamodb list-tables --query "TableNames[?starts_with(@, \`${name_prefix}-realtime-\`)]" --output text 2>/dev/null || true)"
-          if [ -n "$snapshots$layers$apis$websocket_apis$dynamodb_tables" ]; then
-            printf '%s\n' "$snapshots" "$layers" "$apis" "$websocket_apis" "$dynamodb_tables"
+          if [ -n "$snapshots$layers$apis$websocket_apis$cognito_user_pools$dynamodb_tables" ]; then
+            printf '%s\n' "$snapshots" "$layers" "$apis" "$websocket_apis" "$cognito_user_pools" "$dynamodb_tables"
             should_destroy=true
           fi
 
@@ -311,6 +312,12 @@ jobs:
             aws apigatewayv2 delete-api --api-id "$api_id" || true
           done
 
+          echo "=== Cleaning up Cognito user pools ==="
+          for pool_id in $(aws cognito-idp list-user-pools --max-results 60 --query "UserPools[?Name==\`${NAME_PREFIX}-users\`].Id" --output text 2>/dev/null); do
+            echo "  Deleting Cognito user pool $pool_id"
+            aws cognito-idp delete-user-pool --user-pool-id "$pool_id" || true
+          done
+
           echo "=== Cleaning up DynamoDB realtime tables ==="
           for table_name in $(aws dynamodb list-tables --query "TableNames[?starts_with(@, \`${NAME_PREFIX}-realtime-\`)]" --output text 2>/dev/null); do
             echo "  Deleting DynamoDB table $table_name"
@@ -437,6 +444,12 @@ jobs:
           echo "=== Project WebSocket APIs ==="
           for api_id in $(aws apigatewayv2 get-apis --query "Items[?Name==\`${NAME_PREFIX}-realtime-ws\`].ApiId" --output text 2>/dev/null); do
             echo "  Remaining WebSocket API: $api_id"
+            leftovers=1
+          done
+
+          echo "=== Project Cognito user pools ==="
+          for pool_id in $(aws cognito-idp list-user-pools --max-results 60 --query "UserPools[?Name==\`${NAME_PREFIX}-users\`].Id" --output text 2>/dev/null); do
+            echo "  Remaining Cognito user pool: $pool_id"
             leftovers=1
           done
 
