@@ -260,6 +260,12 @@ jobs:
             aws apigatewayv2 delete-api --api-id "$api_id" || true
           done
 
+          echo "=== Cleaning up Cognito user pools ==="
+          for pool_id in $(aws cognito-idp list-user-pools --max-results 60 --query "UserPools[?Name==\`${NAME_PREFIX}-users\`].Id" --output text 2>/dev/null); do
+            echo "  Deleting Cognito user pool $pool_id"
+            aws cognito-idp delete-user-pool --user-pool-id "$pool_id" || true
+          done
+
           echo "=== Cleaning up DynamoDB realtime tables ==="
           for table_name in $(aws dynamodb list-tables --query "TableNames[?starts_with(@, \`${NAME_PREFIX}-realtime-\`)]" --output text 2>/dev/null); do
             echo "  Deleting DynamoDB table $table_name"
@@ -386,6 +392,12 @@ jobs:
           echo "=== Project WebSocket APIs ==="
           for api_id in $(aws apigatewayv2 get-apis --query "Items[?Name==\`${NAME_PREFIX}-realtime-ws\`].ApiId" --output text 2>/dev/null); do
             echo "  Remaining WebSocket API: $api_id"
+            leftovers=1
+          done
+
+          echo "=== Project Cognito user pools ==="
+          for pool_id in $(aws cognito-idp list-user-pools --max-results 60 --query "UserPools[?Name==\`${NAME_PREFIX}-users\`].Id" --output text 2>/dev/null); do
+            echo "  Remaining Cognito user pool: $pool_id"
             leftovers=1
           done
 
