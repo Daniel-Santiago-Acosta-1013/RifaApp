@@ -82,8 +82,9 @@ resource "aws_lambda_function" "cognito_custom_message" {
 }
 
 locals {
-  cognito_ses_source_arn = var.cognito_ses_source_arn != null ? var.cognito_ses_source_arn : (var.cognito_email_identity != "" ? aws_ses_email_identity.cognito[0].arn : null)
-  cognito_email_source_arn = var.cognito_email_sending_account == "DEVELOPER" ? local.cognito_ses_source_arn : null
+  cognito_ses_source_arn       = var.cognito_ses_source_arn != null ? var.cognito_ses_source_arn : (var.cognito_email_identity != "" ? aws_ses_email_identity.cognito[0].arn : null)
+  use_cognito_custom_messages  = var.cognito_email_sending_account == "DEVELOPER" && (var.cognito_ses_source_arn != null || var.cognito_email_identity != "")
+  cognito_email_source_arn     = var.cognito_email_sending_account == "DEVELOPER" ? local.cognito_ses_source_arn : null
 }
 
 resource "aws_cognito_user_pool" "main" {
@@ -130,7 +131,7 @@ resource "aws_cognito_user_pool" "main" {
   }
 
   dynamic "lambda_config" {
-    for_each = local.cognito_email_source_arn != null ? [1] : []
+    for_each = local.use_cognito_custom_messages ? [1] : []
     content {
       custom_message = aws_lambda_function.cognito_custom_message.arn
     }
@@ -140,7 +141,7 @@ resource "aws_cognito_user_pool" "main" {
 }
 
 resource "aws_lambda_permission" "allow_cognito_custom_message" {
-  count         = local.cognito_email_source_arn != null ? 1 : 0
+  count         = local.use_cognito_custom_messages ? 1 : 0
   statement_id  = "AllowExecutionFromCognitoUserPool"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.cognito_custom_message.function_name
