@@ -6,11 +6,14 @@ import { AuthProvider } from "./context/AuthContext";
 import CreateRafflePage from "./pages/CreateRaffle";
 import HomePage from "./pages/Home";
 import LoginPage from "./pages/Login";
+import ConfirmEmailPage from "./pages/ConfirmEmail";
+import ForgotPasswordPage from "./pages/ForgotPassword";
 import NotFoundPage from "./pages/NotFound";
 import ProfilePage from "./pages/Profile";
 import PurchasesPage from "./pages/Purchases";
 import RaffleDetailPage from "./pages/RaffleDetail";
 import RegisterPage from "./pages/Register";
+import ResetPasswordPage from "./pages/ResetPassword";
 import SellRafflesPage from "./pages/SellRaffles";
 import WalletPage from "./pages/Wallet";
 
@@ -21,6 +24,9 @@ const App = () => (
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/confirm-email" element={<ConfirmEmailPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/create" element={<CreateRafflePage />} />

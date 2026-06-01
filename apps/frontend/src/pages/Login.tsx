@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Email,
   Lock,
@@ -26,7 +26,8 @@ import { useAuth } from "../context/AuthContext";
 const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const location = useLocation();
+  const [email, setEmail] = useState((location.state as { email?: string } | null)?.email || "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -46,7 +47,9 @@ const LoginPage = () => {
         navigate("/");
         return;
       }
-      if (result.error?.status === 401) {
+      if (result.error?.code === "UserNotConfirmedException") {
+        navigate("/confirm-email", { state: { email } });
+      } else if (result.error?.status === 401 || result.error?.code === "NotAuthorizedException") {
         setError("Credenciales incorrectas.");
       } else if (result.error?.status === 0 || !result.error?.status) {
         setError(result.error?.message || "Error de conexion. Intenta de nuevo.");
@@ -154,6 +157,10 @@ const LoginPage = () => {
               >
                 {isSubmitting ? "Iniciando sesion..." : "Iniciar sesion"}
               </Button>
+
+              <Typography variant="body2" fontWeight={700} color="primary.main" component="a" href="/forgot-password" sx={{ textAlign: "center", textDecoration: "none" }}>
+                Olvidaste tu contrasena?
+              </Typography>
 
               <Stack direction="row" spacing={0.5} justifyContent="center">
                 <Typography variant="body2" color="text.secondary">

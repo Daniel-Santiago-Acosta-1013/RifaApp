@@ -11,6 +11,7 @@ import type {
   ReservationResponse,
   User,
 } from "../types";
+import { getAuthToken } from "../auth/token";
 
 const getRequiredEnv = (key: "VITE_API_READ_BASE_URL" | "VITE_API_WRITE_BASE_URL") => {
   const value = import.meta.env[key];
@@ -62,6 +63,12 @@ const request = async <T>(
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
+  if (!headers.has("Authorization")) {
+    const token = await getAuthToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -105,17 +112,15 @@ export const createRaffle = (payload: RaffleCreate) =>
     body: JSON.stringify(payload),
   });
 
-export const updateRaffle = (raffleId: string, payload: RaffleUpdate, userId?: string) =>
+export const updateRaffle = (raffleId: string, payload: RaffleUpdate) =>
   request<Raffle>(API_WRITE_BASE_URL, `/raffles/${raffleId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
-    headers: userId ? { "X-User-Id": userId } : undefined,
   });
 
-export const deleteRaffle = (raffleId: string, userId?: string) =>
+export const deleteRaffle = (raffleId: string) =>
   request<{ status: string; raffle_id: string }>(API_WRITE_BASE_URL, `/raffles/${raffleId}`, {
     method: "DELETE",
-    headers: userId ? { "X-User-Id": userId } : undefined,
   });
 
 export const getRaffleNumbers = (raffleId: string, offset = 0, limit?: number) => {
@@ -170,5 +175,7 @@ export const loginUser = (payload: { email: string; password: string }) =>
     method: "POST",
     body: JSON.stringify(payload),
   });
+
+export const getCurrentUser = () => request<User>(API_WRITE_BASE_URL, "/auth/me");
 
 export { ApiError };

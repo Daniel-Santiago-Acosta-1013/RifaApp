@@ -28,8 +28,9 @@ dependency "api" {
   config_path                             = "../../shared/api"
   mock_outputs_allowed_terraform_commands = ["destroy"]
   mock_outputs = {
-    api_id            = "mock-api"
-    api_execution_arn = "arn:aws:execute-api:us-east-1:000000000000:mock-api"
+    api_id                    = "mock-api"
+    api_execution_arn         = "arn:aws:execute-api:us-east-1:000000000000:mock-api"
+    cognito_jwt_authorizer_id = "mock-authorizer"
   }
 }
 
@@ -69,8 +70,23 @@ locals {
   api_stage_name            = get_env("TF_VAR_api_stage_name", get_env("API_STAGE_NAME", "$default"))
   api_gateway_base_path     = local.api_stage_name == "$default" ? "" : "/${local.api_stage_name}"
 
-  write_routes = [
-    "ANY /rifa-app-write/{proxy+}",
+  public_write_routes = [
+    "GET /rifa-app-write/health",
+    "GET /rifa-app-write/docs",
+    "GET /rifa-app-write/openapi.json",
+    "GET /rifa-app-write/redoc",
+    "POST /rifa-app-write/migrations/run",
+    "POST /rifa-app-write/raffles/{raffle_id}/reservations",
+    "POST /rifa-app-write/raffles/{raffle_id}/confirm",
+    "POST /rifa-app-write/raffles/{raffle_id}/release",
+  ]
+
+  protected_write_routes = [
+    "GET /rifa-app-write/auth/me",
+    "POST /rifa-app-write/raffles",
+    "PATCH /rifa-app-write/raffles/{raffle_id}",
+    "DELETE /rifa-app-write/raffles/{raffle_id}",
+    "POST /rifa-app-write/raffles/{raffle_id}/draw",
   ]
 }
 
@@ -91,7 +107,9 @@ inputs = {
   security_group_ids               = [dependency.db.outputs.client_security_group_id]
   api_id                           = dependency.api.outputs.api_id
   api_execution_arn                = dependency.api.outputs.api_execution_arn
-  route_keys                       = local.write_routes
+  route_keys                       = local.public_write_routes
+  protected_route_keys             = local.protected_write_routes
+  jwt_authorizer_id                = dependency.api.outputs.cognito_jwt_authorizer_id
   tags                             = local.tags
   db_secret_arn                    = dependency.db.outputs.db_secret_arn
   realtime_connections_table_arn   = dependency.realtime.outputs.connections_table_arn

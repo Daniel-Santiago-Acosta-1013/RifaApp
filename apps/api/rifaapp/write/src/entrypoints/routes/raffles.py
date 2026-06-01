@@ -1,9 +1,7 @@
 import uuid
-from typing import Optional
+from fastapi import APIRouter, Request
 
-from fastapi import APIRouter, Header
-
-from rifaapp.shared.api.dependencies import require_db
+from rifaapp.shared.api.dependencies import require_cognito_claims, require_db
 from rifaapp.shared.models.schemas import (
     DrawResponse,
     PurchaseConfirmRequest,
@@ -16,33 +14,37 @@ from rifaapp.shared.models.schemas import (
     ReservationResponse,
 )
 from rifaapp.write.src.app.commands import raffles as raffles_commands
+from rifaapp.write.src.app.commands import auth as auth_commands
 
 router = APIRouter(prefix="/raffles", tags=["raffles"])
 
 
 @router.post("", response_model=RaffleOut, status_code=201)
-def create_raffle(payload: RaffleCreate):
+def create_raffle(payload: RaffleCreate, request: Request):
     require_db()
-    return raffles_commands.create_raffle(payload)
+    user = auth_commands.sync_cognito_user(require_cognito_claims(request))
+    return raffles_commands.create_raffle(payload, uuid.UUID(user["id"]))
 
 
 @router.patch("/{raffle_id}", response_model=RaffleOut)
 def update_raffle(
     raffle_id: uuid.UUID,
     payload: RaffleUpdate,
-    user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    request: Request,
 ):
     require_db()
-    return raffles_commands.update_raffle(raffle_id, payload, user_id)
+    user = auth_commands.sync_cognito_user(require_cognito_claims(request))
+    return raffles_commands.update_raffle(raffle_id, payload, user["id"])
 
 
 @router.delete("/{raffle_id}")
 def delete_raffle(
     raffle_id: uuid.UUID,
-    user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    request: Request,
 ):
     require_db()
-    return raffles_commands.delete_raffle(raffle_id, user_id)
+    user = auth_commands.sync_cognito_user(require_cognito_claims(request))
+    return raffles_commands.delete_raffle(raffle_id, user["id"])
 
 
 @router.post("/{raffle_id}/reservations", response_model=ReservationResponse, status_code=201)
@@ -64,6 +66,7 @@ def release_reservation(raffle_id: uuid.UUID, payload: ReservationReleaseRequest
 
 
 @router.post("/{raffle_id}/draw", response_model=DrawResponse)
-def draw_raffle(raffle_id: uuid.UUID):
+def draw_raffle(raffle_id: uuid.UUID, request: Request):
     require_db()
-    return raffles_commands.draw_raffle(raffle_id)
+    user = auth_commands.sync_cognito_user(require_cognito_claims(request))
+    return raffles_commands.draw_raffle(raffle_id, user["id"])

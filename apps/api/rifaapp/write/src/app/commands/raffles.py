@@ -51,7 +51,7 @@ def _raffle_out_from_row(row: dict) -> dict:
     }
 
 
-def create_raffle(payload: RaffleCreate) -> dict:
+def create_raffle(payload: RaffleCreate, owner_id: uuid.UUID) -> dict:
     def _handler(conn):
         cur = conn.cursor()
         status = _normalize_status(payload.status)
@@ -80,7 +80,7 @@ def create_raffle(payload: RaffleCreate) -> dict:
                 payload.draw_at,
                 payload.number_start,
                 payload.number_padding,
-                payload.owner_id,
+                owner_id,
             ),
         )
         row = cur.fetchone()
@@ -535,18 +535,28 @@ def release_reservation(raffle_id: uuid.UUID, reservation_id: str) -> dict:
     return {"status": result["status"], "released": result["released"]}
 
 
-def draw_raffle(raffle_id: uuid.UUID) -> dict:
+def draw_raffle(raffle_id: uuid.UUID, actor_id: Optional[str]) -> dict:
+    if not actor_id:
+        raise HTTPException(status_code=401, detail="Missing user id")
+    try:
+        editor_id = uuid.UUID(actor_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid user id") from exc
+
     def _handler(conn):
         cur = conn.cursor()
         cur.execute(
-            "SELECT status, winner_ticket_id FROM write.raffles WHERE id = %s FOR UPDATE",
+            "SELECT status, winner_ticket_id, owner_id FROM write.raffles WHERE id = %s FOR UPDATE",
             (raffle_id,),
         )
         row = cur.fetchone()
         if not row:
             cur.close()
             raise HTTPException(status_code=404, detail="Raffle not found")
-        status, winner_ticket_id = row
+        status, winner_ticket_id, owner_id = row
+        if owner_id is None or owner_id != editor_id:
+            cur.close()
+            raise HTTPException(status_code=403, detail="Not allowed to draw this raffle")
         if status == "drawn" and winner_ticket_id:
             cur.execute(
                 "SELECT id, participant_id, number FROM write.tickets WHERE id = %s",

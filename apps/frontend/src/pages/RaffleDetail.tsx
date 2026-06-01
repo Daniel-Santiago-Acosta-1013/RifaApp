@@ -350,17 +350,13 @@ const RaffleDetail = () => {
     setSaving(true);
     setPurchaseError("");
     try {
-      const updated = await updateRaffle(
-        raffleId,
-        {
-          title: editForm.title,
-          description: editForm.description || null,
-          ticket_price: Number(editForm.ticket_price),
-          total_tickets: Number(editForm.total_tickets),
-          draw_at: editForm.draw_at ? new Date(editForm.draw_at).toISOString() : null,
-        },
-        user.id,
-      );
+      const updated = await updateRaffle(raffleId, {
+        title: editForm.title,
+        description: editForm.description || null,
+        ticket_price: Number(editForm.ticket_price),
+        total_tickets: Number(editForm.total_tickets),
+        draw_at: editForm.draw_at ? new Date(editForm.draw_at).toISOString() : null,
+      });
       setRaffle(updated);
       setEditing(false);
       await refreshNumbers();

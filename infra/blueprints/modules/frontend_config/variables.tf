@@ -19,6 +19,21 @@ variable "realtime_websocket_url" {
   default     = ""
 }
 
+variable "cognito_user_pool_id" {
+  description = "Cognito User Pool ID para el frontend."
+  type        = string
+}
+
+variable "cognito_user_pool_client_id" {
+  description = "Cognito App Client ID para el frontend."
+  type        = string
+}
+
+variable "cognito_region" {
+  description = "Region AWS de Cognito."
+  type        = string
+}
+
 variable "tags" {
   description = "Tags para los recursos"
   type        = map(string)

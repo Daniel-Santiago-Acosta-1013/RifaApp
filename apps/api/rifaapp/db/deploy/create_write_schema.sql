@@ -32,10 +32,17 @@ CREATE TABLE IF NOT EXISTS write.users (
     id uuid PRIMARY KEY,
     name text NOT NULL,
     email text NOT NULL UNIQUE,
-    password_hash text NOT NULL,
-    password_salt text NOT NULL,
+    cognito_sub text UNIQUE,
+    email_verified boolean NOT NULL DEFAULT false,
+    password_hash text,
+    password_salt text,
     created_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE write.users ADD COLUMN IF NOT EXISTS cognito_sub text UNIQUE;
+ALTER TABLE write.users ADD COLUMN IF NOT EXISTS email_verified boolean NOT NULL DEFAULT false;
+ALTER TABLE write.users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE write.users ALTER COLUMN password_salt DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS write.tickets (
     id uuid PRIMARY KEY,

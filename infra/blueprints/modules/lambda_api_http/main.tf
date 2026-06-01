@@ -126,6 +126,16 @@ resource "aws_apigatewayv2_route" "routes" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "protected_routes" {
+  for_each = toset(var.protected_route_keys)
+
+  api_id             = var.api_id
+  route_key          = each.value
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = var.jwt_authorizer_id
+}
+
 resource "aws_lambda_permission" "apigw" {
   statement_id  = "AllowAPIGatewayInvoke-${var.lambda_name}"
   action        = "lambda:InvokeFunction"

@@ -1,6 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
-from rifaapp.shared.api.dependencies import require_db
+from rifaapp.shared.api.dependencies import require_cognito_claims, require_db
 from rifaapp.shared.models.schemas import UserLogin, UserOut, UserRegister
 from rifaapp.write.src.app.commands import auth as auth_commands
 
@@ -17,3 +17,9 @@ def register(payload: UserRegister):
 def login(payload: UserLogin):
     require_db()
     return auth_commands.login_user(payload)
+
+
+@router.get("/me", response_model=UserOut)
+def me(request: Request):
+    require_db()
+    return auth_commands.sync_cognito_user(require_cognito_claims(request))

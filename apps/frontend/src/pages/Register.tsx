@@ -46,14 +46,18 @@ const Register = () => {
       setError("Las contrasenas no coinciden.");
       return;
     }
-    if (password.length < 6) {
-      setError("La contrasena debe tener al menos 6 caracteres.");
+    if (password.length < 8) {
+      setError("La contrasena debe tener al menos 8 caracteres.");
       return;
     }
     setIsSubmitting(true);
     try {
       const result = await register(name, email, password);
       if (result.success) {
+        if (result.needsConfirmation) {
+          navigate("/confirm-email", { state: { email } });
+          return;
+        }
         navigate("/");
         return;
       }
@@ -92,7 +96,7 @@ const Register = () => {
               <Stack spacing={0.5}>
                 <Typography variant="h4">Crear cuenta</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Registrate para comprar o crear rifas.
+                  Registrate para comprar o crear rifas. Te enviaremos un codigo para confirmar tu correo.
                 </Typography>
               </Stack>
 

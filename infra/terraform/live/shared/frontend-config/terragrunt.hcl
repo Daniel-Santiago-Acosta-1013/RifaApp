@@ -15,7 +15,10 @@ dependency "api" {
   config_path                             = "../api"
   mock_outputs_allowed_terraform_commands = ["destroy"]
   mock_outputs = {
-    api_invoke_url = "https://example.com"
+    api_invoke_url              = "https://example.com"
+    cognito_user_pool_id        = "us-east-1_mock"
+    cognito_user_pool_client_id = "mockclient"
+    cognito_region              = "us-east-1"
   }
 }
 
@@ -32,9 +35,12 @@ terraform {
 }
 
 inputs = {
-  project_name           = local.project_name
-  environment            = local.environment
-  api_invoke_url         = dependency.api.outputs.api_invoke_url
-  realtime_websocket_url = dependency.realtime.outputs.websocket_client_url
-  tags                   = local.tags
+  project_name                = local.project_name
+  environment                 = local.environment
+  api_invoke_url              = dependency.api.outputs.api_invoke_url
+  realtime_websocket_url      = dependency.realtime.outputs.websocket_client_url
+  cognito_user_pool_id        = dependency.api.outputs.cognito_user_pool_id
+  cognito_user_pool_client_id = dependency.api.outputs.cognito_user_pool_client_id
+  cognito_region              = dependency.api.outputs.cognito_region
+  tags                        = local.tags
 }

@@ -33,6 +33,7 @@ class UserOut(BaseModel):
     id: str
     name: str
     email: EmailStr
+    email_verified: bool = False
     created_at: datetime
 
 

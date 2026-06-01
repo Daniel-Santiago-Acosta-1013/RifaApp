@@ -2,6 +2,7 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  email_verified?: boolean;
   created_at: string;
 };
 
@@ -15,7 +16,6 @@ export type RaffleCreate = {
   number_start: number;
   number_padding?: number | null;
   status?: string;
-  owner_id?: string | null;
 };
 
 export type RaffleUpdate = {

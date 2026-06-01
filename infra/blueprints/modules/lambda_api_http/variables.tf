@@ -75,6 +75,16 @@ variable "route_keys" {
   type = list(string)
 }
 
+variable "protected_route_keys" {
+  type    = list(string)
+  default = []
+}
+
+variable "jwt_authorizer_id" {
+  type    = string
+  default = ""
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

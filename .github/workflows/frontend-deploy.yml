@@ -17,6 +17,8 @@ env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
   TG_NON_INTERACTIVE: "true"
+  PROJECT_NAME: ${{ vars.PROJECT_NAME || 'rifaapp' }}
+  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'dev' }}
 
 concurrency:
   group: rifaapp-frontend-deploy
@@ -55,24 +57,37 @@ jobs:
       - name: Load frontend config from Parameter Store
         id: config
         run: |
+          prefix="/${PROJECT_NAME}/${ENVIRONMENT}"
           read_url=$(aws ssm get-parameter \
-            --name "/rifaapp/dev/api-read-url" \
+            --name "${prefix}/api-read-url" \
             --query "Parameter.Value" --output text)
           write_url=$(aws ssm get-parameter \
-            --name "/rifaapp/dev/api-write-url" \
+            --name "${prefix}/api-write-url" \
             --query "Parameter.Value" --output text)
           realtime_url=$(aws ssm get-parameter \
-            --name "/rifaapp/dev/realtime-websocket-url" \
+            --name "${prefix}/realtime-websocket-url" \
             --query "Parameter.Value" --output text 2>/dev/null || true)
+          cognito_region=$(aws ssm get-parameter \
+            --name "${prefix}/cognito-region" \
+            --query "Parameter.Value" --output text)
+          cognito_user_pool_id=$(aws ssm get-parameter \
+            --name "${prefix}/cognito-user-pool-id" \
+            --query "Parameter.Value" --output text)
+          cognito_user_pool_client_id=$(aws ssm get-parameter \
+            --name "${prefix}/cognito-user-pool-client-id" \
+            --query "Parameter.Value" --output text)
 
-          if [ -z "$read_url" ] || [ -z "$write_url" ]; then
-            echo "VITE_API_READ_BASE_URL or VITE_API_WRITE_BASE_URL missing in Parameter Store" >&2
+          if [ -z "$read_url" ] || [ -z "$write_url" ] || [ -z "$cognito_region" ] || [ -z "$cognito_user_pool_id" ] || [ -z "$cognito_user_pool_client_id" ]; then
+            echo "Required frontend config is missing in Parameter Store" >&2
             exit 1
           fi
 
           echo "read_url=$read_url" >> "$GITHUB_OUTPUT"
           echo "write_url=$write_url" >> "$GITHUB_OUTPUT"
           echo "realtime_url=$realtime_url" >> "$GITHUB_OUTPUT"
+          echo "cognito_region=$cognito_region" >> "$GITHUB_OUTPUT"
+          echo "cognito_user_pool_id=$cognito_user_pool_id" >> "$GITHUB_OUTPUT"
+          echo "cognito_user_pool_client_id=$cognito_user_pool_client_id" >> "$GITHUB_OUTPUT"
           echo "Config loaded from Parameter Store"
 
       - name: Apply frontend infra
@@ -116,6 +131,9 @@ jobs:
           VITE_API_READ_BASE_URL: ${{ steps.config.outputs.read_url }}
           VITE_API_WRITE_BASE_URL: ${{ steps.config.outputs.write_url }}
           VITE_REALTIME_WS_URL: ${{ steps.config.outputs.realtime_url }}
+          VITE_COGNITO_REGION: ${{ steps.config.outputs.cognito_region }}
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.config.outputs.cognito_user_pool_id }}
+          VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ steps.config.outputs.cognito_user_pool_client_id }}
         working-directory: apps/frontend
         run: npm run build
 

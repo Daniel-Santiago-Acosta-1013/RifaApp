@@ -23,3 +23,24 @@ resource "aws_ssm_parameter" "realtime_websocket_url" {
   value = var.realtime_websocket_url
   tags  = var.tags
 }
+
+resource "aws_ssm_parameter" "cognito_user_pool_id" {
+  name  = "/${var.project_name}/${var.environment}/cognito-user-pool-id"
+  type  = "String"
+  value = var.cognito_user_pool_id
+  tags  = var.tags
+}
+
+resource "aws_ssm_parameter" "cognito_user_pool_client_id" {
+  name  = "/${var.project_name}/${var.environment}/cognito-user-pool-client-id"
+  type  = "String"
+  value = var.cognito_user_pool_client_id
+  tags  = var.tags
+}
+
+resource "aws_ssm_parameter" "cognito_region" {
+  name  = "/${var.project_name}/${var.environment}/cognito-region"
+  type  = "String"
+  value = var.cognito_region
+  tags  = var.tags
+}

@@ -61,7 +61,6 @@ const CreateRaffle = () => {
         draw_at: new Date(formData.draw_date).toISOString(),
         number_start: 0,
         number_padding: null,
-        owner_id: user.id,
       });
       navigate(`/raffles/${raffle.id}`);
     } catch (err) {
