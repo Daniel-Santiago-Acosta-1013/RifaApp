@@ -9,7 +9,7 @@ locals {
   from_email                    = get_env("COGNITO_FROM_EMAIL_ADDRESS", "")
   reply_to_email                = get_env("COGNITO_REPLY_TO_EMAIL_ADDRESS", "")
   email_sending_account         = get_env("COGNITO_EMAIL_SENDING_ACCOUNT", "")
-  default_email_sending_account = get_env("COGNITO_SES_EMAIL_IDENTITY", "") != "" || local.ses_source_arn != "" ? "DEVELOPER" : "COGNITO_DEFAULT"
+  default_email_sending_account = "DEVELOPER"
   name_prefix                   = "${local.project_name}-${local.environment}"
   tags = {
     Project     = local.project_name

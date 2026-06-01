@@ -59,7 +59,7 @@ variable "cognito_reply_to_email_address" {
 variable "cognito_email_sending_account" {
   description = "COGNITO_DEFAULT o DEVELOPER. Usa DEVELOPER para SES y plantillas HTML custom."
   type        = string
-  default     = "COGNITO_DEFAULT"
+  default     = "DEVELOPER"
 }
 
 variable "cognito_password_minimum_length" {
