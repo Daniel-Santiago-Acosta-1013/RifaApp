@@ -5,6 +5,7 @@ include "root" {
 dependency "network" {
   config_path                             = "../../shared/network"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     private_subnet_ids = ["subnet-00000000000000000"]
   }
@@ -13,6 +14,7 @@ dependency "network" {
 dependency "db" {
   config_path                             = "../../shared/db"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     client_security_group_id = "sg-00000000000000000"
     db_cluster_endpoint      = "localhost"
@@ -27,6 +29,7 @@ dependency "db" {
 dependency "api" {
   config_path                             = "../../shared/api"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     api_id                    = "mock-api"
     api_execution_arn         = "arn:aws:execute-api:us-east-1:000000000000:mock-api"
@@ -37,6 +40,7 @@ dependency "api" {
 dependency "lambda_layer" {
   config_path                             = "../../shared/lambda-layer-write"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     layer_arn = "arn:aws:lambda:us-east-1:000000000000:layer:mock:1"
   }
@@ -45,6 +49,7 @@ dependency "lambda_layer" {
 dependency "realtime" {
   config_path                             = "../../shared/realtime"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     connections_table_name        = "mock-realtime-connections"
     connections_table_arn         = "arn:aws:dynamodb:us-east-1:000000000000:table/mock-realtime-connections"

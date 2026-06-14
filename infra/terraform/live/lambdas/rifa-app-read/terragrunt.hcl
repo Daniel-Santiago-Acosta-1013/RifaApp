@@ -3,29 +3,32 @@ include "root" {
 }
 
 dependency "network" {
-  config_path = "../../shared/network"
+  config_path                             = "../../shared/network"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     private_subnet_ids = ["subnet-00000000000000000"]
   }
 }
 
 dependency "db" {
-  config_path = "../../shared/db"
+  config_path                             = "../../shared/db"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     client_security_group_id = "sg-00000000000000000"
-    db_reader_endpoint      = "localhost"
-    db_port                 = 5432
-    db_name                 = "rifaapp"
-    db_username             = "appuser"
-    db_secret_arn           = "arn:aws:secretsmanager:us-east-1:000000000000:secret:mock"
+    db_reader_endpoint       = "localhost"
+    db_port                  = 5432
+    db_name                  = "rifaapp"
+    db_username              = "appuser"
+    db_secret_arn            = "arn:aws:secretsmanager:us-east-1:000000000000:secret:mock"
   }
 }
 
 dependency "api" {
-  config_path = "../../shared/api"
+  config_path                             = "../../shared/api"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     api_id            = "mock-api"
     api_execution_arn = "arn:aws:execute-api:us-east-1:000000000000:mock-api"
@@ -33,8 +36,9 @@ dependency "api" {
 }
 
 dependency "lambda_layer" {
-  config_path = "../../shared/lambda-layer-read"
+  config_path                             = "../../shared/lambda-layer-read"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     layer_arn = "arn:aws:lambda:us-east-1:000000000000:layer:mock:1"
   }
@@ -67,21 +71,21 @@ terraform {
 }
 
 inputs = {
-  lambda_name         = "rifa-app-read"
-  lambda_source_dir   = local.lambda_read_dir
-  lambda_handler      = get_env("LAMBDA_READ_HANDLER", "rifaapp.read.src.entrypoints.api.handler")
-  lambda_runtime      = get_env("LAMBDA_RUNTIME", "python3.14")
-  lambda_memory_size  = tonumber(get_env("LAMBDA_MEMORY_SIZE", "1024"))
-  lambda_timeout      = tonumber(get_env("LAMBDA_TIMEOUT", "30"))
+  lambda_name          = "rifa-app-read"
+  lambda_source_dir    = local.lambda_read_dir
+  lambda_handler       = get_env("LAMBDA_READ_HANDLER", "rifaapp.read.src.entrypoints.api.handler")
+  lambda_runtime       = get_env("LAMBDA_RUNTIME", "python3.14")
+  lambda_memory_size   = tonumber(get_env("LAMBDA_MEMORY_SIZE", "1024"))
+  lambda_timeout       = tonumber(get_env("LAMBDA_TIMEOUT", "30"))
   lambda_log_retention = tonumber(get_env("LAMBDA_LOG_RETENTION", "14"))
-  layer_arns          = [dependency.lambda_layer.outputs.layer_arn]
-  subnet_ids          = dependency.network.outputs.private_subnet_ids
-  security_group_ids  = [dependency.db.outputs.client_security_group_id]
-  api_id              = dependency.api.outputs.api_id
-  api_execution_arn   = dependency.api.outputs.api_execution_arn
-  route_keys          = local.read_routes
-  tags                = local.tags
-  db_secret_arn       = dependency.db.outputs.db_secret_arn
+  layer_arns           = [dependency.lambda_layer.outputs.layer_arn]
+  subnet_ids           = dependency.network.outputs.private_subnet_ids
+  security_group_ids   = [dependency.db.outputs.client_security_group_id]
+  api_id               = dependency.api.outputs.api_id
+  api_execution_arn    = dependency.api.outputs.api_execution_arn
+  route_keys           = local.read_routes
+  tags                 = local.tags
+  db_secret_arn        = dependency.db.outputs.db_secret_arn
 
   environment = {
     API_GATEWAY_BASE_PATH = local.api_gateway_base_path

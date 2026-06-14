@@ -5,6 +5,7 @@ include "root" {
 dependency "lambda_layer" {
   config_path                             = "../lambda-layer-write"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     layer_arn = "arn:aws:lambda:us-east-1:000000000000:layer:mock:1"
   }

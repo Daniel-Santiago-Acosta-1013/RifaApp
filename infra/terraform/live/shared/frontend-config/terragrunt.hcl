@@ -14,6 +14,7 @@ locals {
 dependency "api" {
   config_path                             = "../api"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     api_invoke_url              = "https://example.com"
     cognito_user_pool_id        = "us-east-1_mock"
@@ -25,6 +26,7 @@ dependency "api" {
 dependency "realtime" {
   config_path                             = "../realtime"
   mock_outputs_allowed_terraform_commands = ["destroy"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     websocket_client_url = "wss://example.com"
   }

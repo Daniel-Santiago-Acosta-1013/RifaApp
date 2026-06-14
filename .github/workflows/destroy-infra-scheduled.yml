@@ -325,6 +325,29 @@ jobs:
             aws dynamodb wait table-not-exists --table-name "$table_name" || true
           done
 
+          echo "=== Cleaning up migration artifact buckets ==="
+          for bucket in $(aws s3api list-buckets --query "Buckets[?starts_with(Name, \`${NAME_PREFIX}-migration-artifacts-\`)].Name" --output text 2>/dev/null); do
+            echo "  Emptying and deleting S3 bucket $bucket"
+            aws s3 rm "s3://${bucket}" --recursive || true
+
+            while true; do
+              versions_file="${RUNNER_TEMP}/${bucket}-versions.json"
+              delete_file="${RUNNER_TEMP}/${bucket}-delete.json"
+              if ! aws s3api list-object-versions --bucket "$bucket" --max-items 1000 > "$versions_file" 2>/dev/null; then
+                break
+              fi
+              jq '{Objects: ((.Versions // []) + (.DeleteMarkers // []) | map({Key, VersionId})), Quiet: true}' "$versions_file" > "$delete_file"
+              object_count="$(jq '.Objects | length' "$delete_file")"
+              if [ "$object_count" -eq 0 ]; then
+                break
+              fi
+              echo "  Deleting $object_count versioned objects/delete markers from $bucket"
+              aws s3api delete-objects --bucket "$bucket" --delete "file://${delete_file}" >/dev/null || true
+            done
+
+            aws s3api delete-bucket --bucket "$bucket" || true
+          done
+
           echo "=== Cleaning up tagged Secrets Manager secrets ==="
           for secret_arn in $(aws resourcegroupstaggingapi get-resources --tag-filters Key=Project,Values="$PROJECT_NAME" Key=Environment,Values="$ENVIRONMENT" --query 'ResourceTagMappingList[?contains(ResourceARN, `:secret:`)].ResourceARN' --output text 2>/dev/null); do
             echo "  Force deleting secret $secret_arn"
@@ -387,6 +410,13 @@ jobs:
             if [ "$arn" = "arn:aws:s3:::${STATE_BUCKET}" ]; then
               continue
             fi
+            if [[ "$arn" == arn:aws:s3:::* ]]; then
+              bucket_name="${arn#arn:aws:s3:::}"
+              if ! aws s3api head-bucket --bucket "$bucket_name" >/dev/null 2>&1; then
+                echo "  Ignoring stale tagged S3 bucket: $arn"
+                continue
+              fi
+            fi
             if [[ "$arn" == *":vpc-endpoint/"* ]]; then
               endpoint_id="${arn##*/}"
               endpoint_state="$(aws ec2 describe-vpc-endpoints --vpc-endpoint-ids "$endpoint_id" --query 'VpcEndpoints[0].State' --output text 2>/dev/null || true)"
@@ -400,6 +430,13 @@ jobs:
               nat_state="$(aws ec2 describe-nat-gateways --nat-gateway-ids "$nat_id" --query 'NatGateways[0].State' --output text 2>/dev/null || true)"
               if [ -z "$nat_state" ] || [ "$nat_state" = "None" ] || [ "$nat_state" = "deleted" ]; then
                 echo "  Ignoring stale tagged NAT gateway: $arn"
+                continue
+              fi
+            fi
+            if [[ "$arn" == *":userpool/"* ]]; then
+              pool_id="${arn##*/}"
+              if ! aws cognito-idp describe-user-pool --user-pool-id "$pool_id" >/dev/null 2>&1; then
+                echo "  Ignoring stale tagged Cognito user pool: $arn"
                 continue
               fi
             fi
