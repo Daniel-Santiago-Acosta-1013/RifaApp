@@ -2,6 +2,10 @@
 
 Monorepositorio de RifaApp. Contiene el backend (FastAPI + Lambda), el frontend (React + Vite) y la infraestructura (Terraform + Terragrunt) en un solo repo.
 
+## Arquitectura AWS
+
+![RifaApp - Infraestructura AWS actual](docs/RifaaApp-infraestructure.png)
+
 ## Estructura
 
 ```
