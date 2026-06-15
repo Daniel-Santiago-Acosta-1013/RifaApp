@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Email, MarkEmailRead } from "@mui/icons-material";
+import { Email, MarkEmailRead, Send } from "@mui/icons-material";
 import {
+  Alert,
   Box,
   Button,
   CircularProgress,
@@ -14,52 +15,102 @@ import {
 } from "@mui/material";
 
 import Brand from "../components/Brand";
-import { useAuth } from "../context/AuthContext";
+import { useAuth, type AuthError } from "../context/AuthContext";
+
+type FeedbackSeverity = "success" | "error" | "info";
+
+type Feedback = {
+  severity: FeedbackSeverity;
+  title: string;
+  detail?: string;
+};
+
+type ConfirmEmailLocationState = {
+  email?: string;
+  notice?: string;
+  noticeSeverity?: FeedbackSeverity;
+};
+
+const buildErrorFeedback = (title: string, error: AuthError | undefined, fallback: string): Feedback => {
+  const usefulCode = error?.code && error.code !== "Error" ? error.code : "";
+  const concreteError = usefulCode ? `${usefulCode}: ${error?.message}` : error?.message;
+  return {
+    severity: "error",
+    title,
+    detail: concreteError || fallback,
+  };
+};
 
 const ConfirmEmailPage = () => {
   const { confirmRegistration, resendRegistrationCode } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState((location.state as { email?: string } | null)?.email || "");
+  const routeState = (location.state as ConfirmEmailLocationState | null) ?? {};
+  const [email, setEmail] = useState(routeState.email || "");
   const [code, setCode] = useState("");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState<Feedback | null>(() =>
+    routeState.notice
+      ? {
+          severity: routeState.noticeSeverity || "success",
+          title: routeState.noticeSeverity === "info" ? "Cuenta pendiente de confirmar" : "Codigo enviado",
+          detail: routeState.notice,
+        }
+      : null,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError("");
-    setMessage("");
-    if (!email || !code) {
-      setError("Ingresa el correo y el codigo de confirmacion.");
+    setFeedback(null);
+    const targetEmail = email.trim();
+    if (!targetEmail || !code) {
+      setFeedback({
+        severity: "error",
+        title: "Faltan datos",
+        detail: "Ingresa el correo y el codigo de confirmacion.",
+      });
       return;
     }
     setIsSubmitting(true);
     try {
-      const result = await confirmRegistration(email, code.trim());
+      const result = await confirmRegistration(targetEmail, code.trim());
       if (result.success) {
-        navigate("/login", { state: { email } });
+        navigate("/login", { state: { email: targetEmail } });
         return;
       }
-      setError(result.error?.message || "No se pudo confirmar el correo.");
+      setFeedback(buildErrorFeedback("No se pudo confirmar el correo", result.error, "No se pudo confirmar el correo."));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleResend = async () => {
-    setError("");
-    setMessage("");
-    if (!email) {
-      setError("Ingresa el correo para reenviar el codigo.");
+    setFeedback(null);
+    const targetEmail = email.trim();
+    if (!targetEmail) {
+      setFeedback({
+        severity: "error",
+        title: "Falta el correo",
+        detail: "Ingresa el correo para reenviar el codigo.",
+      });
       return;
     }
-    const result = await resendRegistrationCode(email);
-    if (result.success) {
-      setMessage("Te enviamos un nuevo codigo.");
-      return;
+    setIsResending(true);
+    try {
+      const result = await resendRegistrationCode(targetEmail);
+      if (result.success) {
+        setFeedback({
+          severity: "success",
+          title: "Codigo reenviado",
+          detail: `Cognito acepto el envio del nuevo codigo a ${targetEmail}. Revisa la bandeja de entrada y spam.`,
+        });
+        return;
+      }
+      setFeedback(buildErrorFeedback("No se pudo reenviar el codigo", result.error, "Cognito no pudo enviar el codigo."));
+    } finally {
+      setIsResending(false);
     }
-    setError(result.error?.message || "No se pudo reenviar el codigo.");
   };
 
   return (
@@ -87,19 +138,25 @@ const ConfirmEmailPage = () => {
               </Typography>
             </Stack>
 
-            {(error || message) && (
-              <Box
+            {feedback && (
+              <Alert
+                severity={feedback.severity}
+                variant="outlined"
                 sx={{
-                  p: 2,
                   borderRadius: 2.5,
-                  backgroundColor: error ? "rgba(204, 75, 75, 0.08)" : "rgba(47,180,154,0.08)",
-                  border: error ? "1px solid rgba(204, 75, 75, 0.2)" : "1px solid rgba(47,180,154,0.2)",
+                  alignItems: "flex-start",
+                  "& .MuiAlert-message": { width: "100%" },
                 }}
               >
-                <Typography variant="body2" color={error ? "error.main" : "secondary.main"} fontWeight={600}>
-                  {error || message}
+                <Typography variant="body2" fontWeight={800}>
+                  {feedback.title}
                 </Typography>
-              </Box>
+                {feedback.detail && (
+                  <Typography variant="body2" sx={{ mt: 0.25 }}>
+                    {feedback.detail}
+                  </Typography>
+                )}
+              </Alert>
             )}
 
             <TextField
@@ -133,14 +190,19 @@ const ConfirmEmailPage = () => {
               variant="contained"
               size="large"
               fullWidth
-              disabled={isSubmitting}
+              disabled={isSubmitting || isResending}
               startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <MarkEmailRead />}
               sx={{ py: 1.5, borderRadius: 12 }}
             >
               {isSubmitting ? "Confirmando..." : "Confirmar correo"}
             </Button>
-            <Button variant="text" onClick={handleResend}>
-              Reenviar codigo
+            <Button
+              variant="text"
+              onClick={handleResend}
+              disabled={isSubmitting || isResending}
+              startIcon={isResending ? <CircularProgress size={18} color="inherit" /> : <Send />}
+            >
+              {isResending ? "Reenviando..." : "Reenviar codigo"}
             </Button>
           </Stack>
         </Paper>

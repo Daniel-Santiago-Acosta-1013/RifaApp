@@ -55,7 +55,13 @@ const Register = () => {
       const result = await register(name, email, password);
       if (result.success) {
         if (result.needsConfirmation) {
-          navigate("/confirm-email", { state: { email } });
+          navigate("/confirm-email", {
+            state: {
+              email,
+              notice: `Enviamos el codigo de confirmacion a ${email}. Revisa la bandeja de entrada y spam.`,
+              noticeSeverity: "success",
+            },
+          });
           return;
         }
         navigate("/");

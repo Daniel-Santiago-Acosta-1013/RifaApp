@@ -48,7 +48,13 @@ const LoginPage = () => {
         return;
       }
       if (result.error?.code === "UserNotConfirmedException") {
-        navigate("/confirm-email", { state: { email } });
+        navigate("/confirm-email", {
+          state: {
+            email,
+            notice: "Tu cuenta existe, pero el correo todavia no esta confirmado. Si no tienes el codigo, reenvialo desde esta pantalla.",
+            noticeSeverity: "info",
+          },
+        });
       } else if (result.error?.status === 401 || result.error?.code === "NotAuthorizedException") {
         setError("Credenciales incorrectas.");
       } else if (result.error?.status === 0 || !result.error?.status) {
