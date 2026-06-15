@@ -7,12 +7,15 @@ import {
   CheckCircle,
   CreditCard,
   History,
+  InfoOutlined,
+  Input,
   Payments,
   RestartAlt,
   Savings,
   Smartphone,
 } from "@mui/icons-material";
-import { Alert, Box, Button, Chip, Paper, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, InputAdornment, Paper, Stack, TextField, Typography } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 
 import Onboarding from "../components/Onboarding";
 import PageHeader from "../components/PageHeader";
@@ -77,6 +80,12 @@ const sanitizeReturnTo = (value: string | null) => {
 };
 
 const roundDepositAmount = (value: number) => Math.ceil(value / 1000) * 1000;
+
+const surfaceSx = {
+  border: "1px solid",
+  borderColor: "rgba(230,225,216,0.95)",
+  boxShadow: "0 18px 46px rgba(28,31,38,0.07)",
+};
 
 const WalletPage = () => {
   const { user } = useAuth();
@@ -152,7 +161,7 @@ const WalletPage = () => {
   };
 
   return (
-    <Stack spacing={4}>
+    <Stack spacing={{ xs: 2.5, md: 3.5 }} sx={{ pb: { xs: 2, sm: 0 } }}>
       <PageHeader
         eyebrow="Billetera demo"
         title="Saldo para comprar rifas"
@@ -184,51 +193,133 @@ const WalletPage = () => {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "minmax(280px, 0.9fr) minmax(0, 1.1fr)" },
-          gap: 3,
+          gridTemplateColumns: { xs: "1fr", lg: "360px minmax(0, 1fr)" },
+          gap: { xs: 2, md: 2.5 },
           alignItems: "stretch",
         }}
       >
-        <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 3, border: "1px solid rgba(239,231,220,0.8)" }}>
-          <Stack spacing={3} sx={{ height: "100%" }}>
+        <Paper
+          sx={{
+            ...surfaceSx,
+            p: { xs: 2.5, sm: 3 },
+            borderRadius: 3,
+            overflow: "hidden",
+            color: "#fff",
+            background: "linear-gradient(135deg, #1C1F26 0%, #2B3039 58%, #17463C 100%)",
+          }}
+        >
+          <Stack spacing={{ xs: 2.5, md: 3 }} sx={{ height: "100%" }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Savings color="primary" />
-              <Chip label="Demo" size="small" color="secondary" variant="outlined" />
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 2,
+                  display: "grid",
+                  placeItems: "center",
+                  backgroundColor: alpha("#ffffff", 0.12),
+                  color: "primary.light",
+                }}
+              >
+                <Savings />
+              </Box>
+              <Chip
+                label="Demo"
+                size="small"
+                sx={{
+                  color: "secondary.light",
+                  borderColor: alpha("#8FE2D3", 0.55),
+                  backgroundColor: alpha("#8FE2D3", 0.08),
+                }}
+                variant="outlined"
+              />
             </Stack>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
+            <Stack spacing={1}>
+              <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.72) }}>
                 Disponible
               </Typography>
-              <Typography variant="h3" sx={{ mt: 0.5 }}>
+              <Typography variant="h2" sx={{ fontSize: { xs: "3rem", sm: "3.4rem" }, color: "#fff" }}>
                 {formatMoney(balance, "COP")}
               </Typography>
-            </Box>
-            <Stack spacing={0.75}>
-              <Typography variant="body2" color="text.secondary">
+            </Stack>
+
+            <Box
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                backgroundColor: alpha("#ffffff", 0.09),
+                border: `1px solid ${alpha("#ffffff", 0.14)}`,
+              }}
+            >
+              <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.62) }}>
                 Cuenta
               </Typography>
-              <Typography variant="body1" fontWeight={700} sx={{ wordBreak: "break-word" }}>
+              <Typography
+                variant="body1"
+                fontWeight={800}
+                sx={{ mt: 0.5, wordBreak: "break-word", color: "#fff" }}
+              >
                 {user.email}
               </Typography>
-            </Stack>
+            </Box>
+
+            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1.2 }}>
+              {[
+                ["Moneda", "COP"],
+                ["Estado", "Activa"],
+              ].map(([label, value]) => (
+                <Box key={label} sx={{ minWidth: 0 }}>
+                  <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.58) }}>
+                    {label}
+                  </Typography>
+                  <Typography variant="body2" fontWeight={800} sx={{ color: "#fff" }}>
+                    {value}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
             <Box sx={{ flexGrow: 1 }} />
             <Button
-              variant="text"
-              color="inherit"
+              variant="outlined"
               onClick={handleReset}
               startIcon={<RestartAlt />}
               disabled={walletLoading || balance === 0}
-              sx={{ alignSelf: "flex-start" }}
+              sx={{
+                alignSelf: "flex-start",
+                color: "#fff",
+                borderColor: alpha("#ffffff", 0.28),
+                backgroundColor: alpha("#ffffff", 0.04),
+                "&:hover": {
+                  borderColor: alpha("#ffffff", 0.45),
+                  backgroundColor: alpha("#ffffff", 0.08),
+                },
+                "&.Mui-disabled": {
+                  color: alpha("#ffffff", 0.36),
+                  borderColor: alpha("#ffffff", 0.16),
+                },
+              }}
             >
               Vaciar billetera demo
             </Button>
           </Stack>
         </Paper>
 
-        <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 3, border: "1px solid rgba(239,231,220,0.8)" }}>
-          <Stack spacing={3}>
+        <Paper sx={{ ...surfaceSx, p: { xs: 2.5, sm: 3 }, borderRadius: 3 }}>
+          <Stack spacing={{ xs: 2.5, md: 3 }}>
             <Stack direction="row" spacing={1.5} alignItems="center">
-              <AccountBalanceWallet color="primary" />
+              <Box
+                sx={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 2,
+                  display: "grid",
+                  placeItems: "center",
+                  color: "primary.main",
+                  backgroundColor: "rgba(243,107,79,0.1)",
+                }}
+              >
+                <AccountBalanceWallet />
+              </Box>
               <Box>
                 <Typography variant="h6">Ingresar dinero</Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -237,7 +328,13 @@ const WalletPage = () => {
               </Box>
             </Stack>
 
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, minmax(0, 1fr))" },
+                gap: 1,
+              }}
+            >
               {quickAmounts.map((value) => (
                 <Chip
                   key={value}
@@ -249,9 +346,10 @@ const WalletPage = () => {
                   disabled={walletLoading}
                   color={Number(amount) === value ? "primary" : "default"}
                   variant={Number(amount) === value ? "filled" : "outlined"}
+                  sx={{ width: "100%", height: 36, fontSize: { xs: "0.78rem", sm: "0.82rem" } }}
                 />
               ))}
-            </Stack>
+            </Box>
 
             <TextField
               label="Monto a ingresar"
@@ -262,6 +360,9 @@ const WalletPage = () => {
                 setFeedback(null);
               }}
               inputProps={{ min: MIN_DEPOSIT, max: MAX_DEPOSIT, step: 1000 }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start">$</InputAdornment>,
+              }}
               error={amount !== "" && !hasValidAmount}
               helperText={`Minimo ${formatMoney(MIN_DEPOSIT)}. Maximo ${formatMoney(MAX_DEPOSIT)}.`}
               fullWidth
@@ -270,36 +371,64 @@ const WalletPage = () => {
             <Box
               sx={{
                 display: "grid",
-                gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
                 gap: 1.5,
               }}
             >
-              {depositMethods.map((method) => (
+              {depositMethods.map((method) => {
+                const selected = selectedMethod === method.id;
+                return (
                 <Button
                   key={method.id}
-                  variant={selectedMethod === method.id ? "contained" : "outlined"}
-                  color={selectedMethod === method.id ? "primary" : "inherit"}
+                  variant="outlined"
                   onClick={() => setSelectedMethod(method.id)}
                   disabled={walletLoading}
                   startIcon={method.icon}
-                  sx={{ justifyContent: "flex-start", borderRadius: 3, py: 1.25 }}
+                  sx={{
+                    justifyContent: "flex-start",
+                    alignItems: "center",
+                    borderRadius: 2,
+                    py: 1.35,
+                    px: 1.5,
+                    minHeight: 74,
+                    color: selected ? "primary.contrastText" : "text.primary",
+                    borderColor: selected ? "primary.main" : "divider",
+                    backgroundColor: selected ? "primary.main" : "background.paper",
+                    "& .MuiButton-startIcon": {
+                      color: selected ? "primary.contrastText" : "primary.main",
+                    },
+                    "&:hover": {
+                      borderColor: selected ? "primary.dark" : "primary.main",
+                      backgroundColor: selected ? "primary.dark" : "rgba(243,107,79,0.05)",
+                    },
+                  }}
                 >
-                  <Stack spacing={0} alignItems="flex-start">
-                    <Typography variant="body2" fontWeight={800}>
+                  <Stack spacing={0} alignItems="flex-start" sx={{ minWidth: 0 }}>
+                    <Typography variant="body2" fontWeight={800} sx={{ lineHeight: 1.2 }}>
                       {method.label}
                     </Typography>
-                    <Typography variant="caption">{method.description}</Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: selected ? alpha("#ffffff", 0.82) : "text.secondary",
+                        lineHeight: 1.25,
+                        whiteSpace: "normal",
+                      }}
+                    >
+                      {method.description}
+                    </Typography>
                   </Stack>
                 </Button>
-              ))}
+                );
+              })}
             </Box>
 
             <Box
               sx={{
-                p: 2.5,
-                borderRadius: 3,
-                backgroundColor: "rgba(47,180,154,0.06)",
-                border: "1px solid rgba(47,180,154,0.16)",
+                p: { xs: 2, sm: 2.4 },
+                borderRadius: 2,
+                backgroundColor: "rgba(47,180,154,0.07)",
+                border: "1px solid rgba(47,180,154,0.18)",
               }}
             >
               <Stack spacing={1.2}>
@@ -336,7 +465,12 @@ const WalletPage = () => {
               onClick={handleDeposit}
               startIcon={<AddCard />}
               disabled={walletLoading}
-              sx={{ borderRadius: 999, alignSelf: { xs: "stretch", sm: "flex-end" }, px: 4 }}
+              sx={{
+                borderRadius: 999,
+                alignSelf: { xs: "stretch", sm: "flex-end" },
+                px: { xs: 2.5, sm: 4 },
+                minHeight: 52,
+              }}
             >
               {walletLoading ? "Procesando..." : "Confirmar recarga demo"}
             </Button>
@@ -344,10 +478,22 @@ const WalletPage = () => {
         </Paper>
       </Box>
 
-      <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 3, border: "1px solid rgba(239,231,220,0.8)" }}>
+      <Paper sx={{ ...surfaceSx, p: { xs: 2.5, sm: 3 }, borderRadius: 3 }}>
         <Stack spacing={2.5}>
           <Stack direction="row" spacing={1.5} alignItems="center">
-            <History color="primary" />
+            <Box
+              sx={{
+                width: 42,
+                height: 42,
+                borderRadius: 2,
+                display: "grid",
+                placeItems: "center",
+                color: "primary.main",
+                backgroundColor: "rgba(243,107,79,0.1)",
+              }}
+            >
+              <History />
+            </Box>
             <Box>
               <Typography variant="h6">Movimientos</Typography>
               <Typography variant="body2" color="text.secondary">
@@ -357,9 +503,23 @@ const WalletPage = () => {
           </Stack>
 
           {transactions.length === 0 ? (
-            <Alert severity="info" sx={{ borderRadius: 3 }}>
-              Aun no hay movimientos.
-            </Alert>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                p: { xs: 2, sm: 2.4 },
+                borderRadius: 2,
+                color: "info.main",
+                backgroundColor: "rgba(91,124,250,0.08)",
+                border: "1px solid rgba(91,124,250,0.12)",
+              }}
+            >
+              <InfoOutlined fontSize="small" />
+              <Typography variant="body2" color="text.primary">
+                Aun no hay movimientos.
+              </Typography>
+            </Box>
           ) : (
             <Stack spacing={1.2}>
               {transactions.map((transaction) => (
@@ -367,21 +527,41 @@ const WalletPage = () => {
                   key={transaction.id}
                   sx={{
                     display: "grid",
-                    gridTemplateColumns: { xs: "1fr", sm: "1fr auto" },
-                    gap: 1,
+                    gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
+                    gap: { xs: 1.5, sm: 2 },
                     alignItems: "center",
-                    p: 2,
-                    borderRadius: 3,
+                    p: { xs: 1.8, sm: 2 },
+                    borderRadius: 2,
                     border: "1px solid rgba(239,231,220,0.8)",
+                    backgroundColor: "rgba(255,252,248,0.72)",
                   }}
                 >
-                  <Stack spacing={0.4}>
-                    <Typography variant="body2" fontWeight={800}>
-                      {transaction.description}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {methodLabel(transaction.method)} - {formatDate(transaction.created_at)}
-                    </Typography>
+                  <Stack direction="row" spacing={1.4} alignItems="center" sx={{ minWidth: 0 }}>
+                    <Box
+                      sx={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 2,
+                        display: "grid",
+                        placeItems: "center",
+                        flexShrink: 0,
+                        color: transaction.type === "deposit" || transaction.type === "refund" ? "secondary.main" : "primary.main",
+                        backgroundColor:
+                          transaction.type === "deposit" || transaction.type === "refund"
+                            ? "rgba(47,180,154,0.1)"
+                            : "rgba(243,107,79,0.1)",
+                      }}
+                    >
+                      {transaction.type === "deposit" || transaction.type === "refund" ? <Input /> : <Payments />}
+                    </Box>
+                    <Stack spacing={0.35} sx={{ minWidth: 0 }}>
+                      <Typography variant="body2" fontWeight={800} sx={{ overflowWrap: "anywhere" }}>
+                        {transaction.description}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {methodLabel(transaction.method)} - {formatDate(transaction.created_at)}
+                      </Typography>
+                    </Stack>
                   </Stack>
                   <Stack spacing={0.2} alignItems={{ xs: "flex-start", sm: "flex-end" }}>
                     <Typography variant="body1" fontWeight={900} color={transactionColor(transaction.type)}>
