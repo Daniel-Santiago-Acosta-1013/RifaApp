@@ -1,4 +1,4 @@
-import { Home, Person, Storefront } from "@mui/icons-material";
+import { AccountBalanceWallet, Home, Person, Storefront } from "@mui/icons-material";
 import { BottomNavigation, BottomNavigationAction, Paper, useMediaQuery, useTheme } from "@mui/material";
 import { Link, useLocation } from "react-router-dom";
 
@@ -73,6 +73,13 @@ const BottomNav = () => {
           value="/sell/raffles"
           component={Link}
           to="/sell/raffles"
+        />
+        <BottomNavigationAction
+          label="Billetera"
+          icon={<AccountBalanceWallet />}
+          value="/wallet"
+          component={Link}
+          to="/wallet"
         />
         <BottomNavigationAction
           label="Perfil"

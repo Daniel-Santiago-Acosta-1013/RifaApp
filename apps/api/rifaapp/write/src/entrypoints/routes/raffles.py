@@ -54,9 +54,10 @@ def reserve_numbers(raffle_id: uuid.UUID, payload: ReservationRequest):
 
 
 @router.post("/{raffle_id}/confirm", response_model=PurchaseConfirmResponse)
-def confirm_purchase(raffle_id: uuid.UUID, payload: PurchaseConfirmRequest):
+def confirm_purchase(raffle_id: uuid.UUID, payload: PurchaseConfirmRequest, request: Request):
     require_db()
-    return raffles_commands.confirm_purchase(raffle_id, payload)
+    user = auth_commands.sync_cognito_user(require_cognito_claims(request))
+    return raffles_commands.confirm_purchase(raffle_id, payload, user)
 
 
 @router.post("/{raffle_id}/release")

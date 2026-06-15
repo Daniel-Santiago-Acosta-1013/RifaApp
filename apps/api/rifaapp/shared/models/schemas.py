@@ -160,3 +160,32 @@ class PurchaseConfirmResponse(BaseModel):
     currency: str
     status: str
     created_at: datetime
+
+
+class WalletDepositRequest(BaseModel):
+    amount: Decimal = Field(..., gt=0, le=1000000)
+    currency: str = Field("COP", min_length=3, max_length=3)
+    method: str = Field("pse_demo", min_length=2, max_length=30)
+
+
+class WalletTransactionOut(BaseModel):
+    id: str
+    type: str
+    amount: Decimal
+    currency: str
+    status: str
+    description: str
+    method: Optional[str] = None
+    raffle_id: Optional[str] = None
+    purchase_id: Optional[str] = None
+    reservation_id: Optional[str] = None
+    created_at: datetime
+
+
+class WalletOut(BaseModel):
+    user_id: str
+    balance: Decimal
+    currency: str
+    transactions: list[WalletTransactionOut] = []
+    created_at: datetime
+    updated_at: datetime

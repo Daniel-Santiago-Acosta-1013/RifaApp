@@ -1,19 +1,34 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+
+import { depositWallet, getWallet, resetWallet } from "../api/client";
+import type { Wallet, WalletPaymentMethod } from "../types";
+import { useAuth } from "./AuthContext";
 
 type Mode = "buy" | "sell";
 
 type AppContextValue = {
   mode: Mode;
   setMode: (mode: Mode) => void;
+  wallet: Wallet;
   balance: number;
-  credit: (amount: number) => void;
-  debit: (amount: number) => boolean;
-  resetBalance: () => void;
+  transactions: Wallet["transactions"];
+  walletLoading: boolean;
+  walletError: string;
+  refreshWallet: () => Promise<Wallet | null>;
+  deposit: (amount: number, method: WalletPaymentMethod) => Promise<Wallet | null>;
+  resetBalance: () => Promise<Wallet | null>;
 };
 
 const MODE_KEY = "rifaapp_mode";
-const BALANCE_KEY = "rifaapp_demo_balance";
-const DEFAULT_BALANCE = 150000;
+
+const emptyWallet = (): Wallet => ({
+  user_id: "",
+  balance: "0",
+  currency: "COP",
+  transactions: [],
+  created_at: new Date(0).toISOString(),
+  updated_at: new Date(0).toISOString(),
+});
 
 const loadMode = (): Mode => {
   if (typeof window === "undefined") {
@@ -23,64 +38,125 @@ const loadMode = (): Mode => {
   return raw === "sell" ? "sell" : "buy";
 };
 
-const loadBalance = (): number => {
-  if (typeof window === "undefined") {
-    return DEFAULT_BALANCE;
-  }
-  const raw = localStorage.getItem(BALANCE_KEY);
-  const parsed = raw ? Number(raw) : NaN;
-  return Number.isFinite(parsed) ? parsed : DEFAULT_BALANCE;
+const parseBalance = (value: string | number) => {
+  const numeric = typeof value === "string" ? Number(value) : value;
+  return Number.isFinite(numeric) ? numeric : 0;
 };
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading: authLoading } = useAuth();
   const [mode, updateMode] = useState<Mode>(() => loadMode());
-  const [balance, updateBalance] = useState<number>(() => loadBalance());
+  const [wallet, updateWallet] = useState<Wallet>(() => emptyWallet());
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletError, setWalletError] = useState("");
 
   const setMode = (next: Mode) => {
     updateMode(next);
     localStorage.setItem(MODE_KEY, next);
   };
 
-  const credit = (amount: number) => {
-    updateBalance((prev) => {
-      const next = Math.max(0, prev + amount);
-      localStorage.setItem(BALANCE_KEY, String(next));
-      return next;
-    });
-  };
-
-  const debit = (amount: number) => {
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return false;
+  const refreshWallet = useCallback(async () => {
+    if (!user) {
+      updateWallet(emptyWallet());
+      setWalletError("");
+      return null;
     }
-    if (balance < amount) {
-      return false;
+    setWalletLoading(true);
+    setWalletError("");
+    try {
+      const response = await getWallet();
+      updateWallet(response);
+      return response;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "No se pudo cargar la billetera.";
+      setWalletError(message);
+      return null;
+    } finally {
+      setWalletLoading(false);
     }
-    updateBalance((prev) => {
-      const next = Math.max(0, prev - amount);
-      localStorage.setItem(BALANCE_KEY, String(next));
-      return next;
-    });
-    return true;
-  };
+  }, [user]);
 
-  const resetBalance = () => {
-    updateBalance(DEFAULT_BALANCE);
-    localStorage.setItem(BALANCE_KEY, String(DEFAULT_BALANCE));
-  };
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+    if (!user) {
+      updateWallet(emptyWallet());
+      setWalletError("");
+      return;
+    }
+    let active = true;
+    setWalletLoading(true);
+    setWalletError("");
+    getWallet()
+      .then((response) => {
+        if (active) {
+          updateWallet(response);
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setWalletError(err instanceof Error ? err.message : "No se pudo cargar la billetera.");
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setWalletLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [authLoading, user]);
+
+  const deposit = useCallback(async (amount: number, method: WalletPaymentMethod) => {
+    setWalletLoading(true);
+    setWalletError("");
+    try {
+      const response = await depositWallet({ amount, currency: "COP", method });
+      updateWallet(response);
+      return response;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "No se pudo ingresar dinero.";
+      setWalletError(message);
+      throw err;
+    } finally {
+      setWalletLoading(false);
+    }
+  }, []);
+
+  const resetBalance = useCallback(async () => {
+    setWalletLoading(true);
+    setWalletError("");
+    try {
+      const response = await resetWallet();
+      updateWallet(response);
+      return response;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "No se pudo vaciar la billetera.";
+      setWalletError(message);
+      throw err;
+    } finally {
+      setWalletLoading(false);
+    }
+  }, []);
 
   const value = useMemo(
     () => ({
       mode,
       setMode,
-      balance,
-      credit,
-      debit,
+      wallet,
+      balance: parseBalance(wallet.balance),
+      transactions: wallet.transactions,
+      walletLoading,
+      walletError,
+      refreshWallet,
+      deposit,
       resetBalance,
     }),
-    [mode, balance],
+    [deposit, mode, refreshWallet, resetBalance, wallet, walletError, walletLoading],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

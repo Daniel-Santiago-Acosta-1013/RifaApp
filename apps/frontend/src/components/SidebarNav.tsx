@@ -33,7 +33,7 @@ const SidebarNav = ({ onNavigate }: { onNavigate?: () => void }) => {
       : [
           { to: "/", label: "Explorar rifas", icon: <TravelExplore /> },
           { to: "/purchases", label: "Mis compras", icon: <ShoppingBag /> },
-          { to: "/wallet", label: "Saldo demo", icon: <AccountBalanceWallet /> },
+          { to: "/wallet", label: "Billetera", icon: <AccountBalanceWallet /> },
           { to: "/profile", label: "Perfil", icon: <Person /> },
         ];
 

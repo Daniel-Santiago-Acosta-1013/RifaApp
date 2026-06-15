@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Close,
   Home,
+  AccountBalanceWallet,
   Login,
   Logout,
   Menu,
@@ -35,6 +36,7 @@ const navItems = [
   { label: "Inicio", href: "/", icon: <Home /> },
   { label: "Perfil", href: "/profile", icon: <Person />, auth: true },
   { label: "Mis rifas", href: "/sell/raffles", icon: <Storefront />, auth: true },
+  { label: "Billetera", href: "/wallet", icon: <AccountBalanceWallet />, auth: true },
 ];
 
 const publicItems = [

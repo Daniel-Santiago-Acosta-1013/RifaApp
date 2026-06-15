@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import HTTPException
 
 from rifaapp.write.src.app.commands.participants import get_or_create_participant
+from rifaapp.write.src.app.commands.wallet import charge_wallet_for_purchase
 from rifaapp.write.src.infra.db import run_transaction
 from rifaapp.shared.models.schemas import (
     PurchaseConfirmRequest,
@@ -394,7 +395,19 @@ def reserve_numbers(raffle_id: uuid.UUID, payload: ReservationRequest) -> dict:
     return result
 
 
-def confirm_purchase(raffle_id: uuid.UUID, payload: PurchaseConfirmRequest) -> dict:
+def confirm_purchase(raffle_id: uuid.UUID, payload: PurchaseConfirmRequest, actor: dict) -> dict:
+    try:
+        actor_id = uuid.UUID(actor["id"])
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=401, detail="Invalid authenticated user") from exc
+    actor_email = (actor.get("email") or "").strip().lower()
+    if not actor_email:
+        raise HTTPException(status_code=401, detail="Invalid authenticated user")
+    try:
+        reservation_id = uuid.UUID(payload.reservation_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid reservation_id") from exc
+
     def _handler(conn):
         cur = conn.cursor()
         cur.execute(
@@ -425,26 +438,47 @@ def confirm_purchase(raffle_id: uuid.UUID, payload: PurchaseConfirmRequest) -> d
         elif payload.participant:
             participant_id = get_or_create_participant(conn, payload.participant)
         else:
-            cur.close()
-            raise HTTPException(status_code=400, detail="Participant is required")
+            cur.execute(
+                """
+                SELECT DISTINCT t.participant_id
+                FROM write.tickets t
+                JOIN write.participants p ON p.id = t.participant_id
+                WHERE t.raffle_id = %s
+                  AND t.reservation_id = %s
+                  AND lower(p.email) = %s
+                  AND t.status = 'reserved'
+                  AND t.reserved_until > now()
+                """,
+                (raffle_id, reservation_id, actor_email),
+            )
+            participant_row = cur.fetchone()
+            if not participant_row:
+                cur.close()
+                raise HTTPException(status_code=400, detail="Reservation expired or not found")
+            participant_id = participant_row[0]
 
         cur.execute(
             """
-            SELECT id, number
+            SELECT t.id, t.number, p.email
             FROM write.tickets
-            WHERE raffle_id = %s
-              AND status = 'reserved'
-              AND reservation_id = %s
-              AND participant_id = %s
-              AND reserved_until > now()
+            JOIN write.participants p ON p.id = t.participant_id
+            WHERE t.raffle_id = %s
+              AND t.status = 'reserved'
+              AND t.reservation_id = %s
+              AND t.participant_id = %s
+              AND t.reserved_until > now()
             FOR UPDATE
             """,
-            (raffle_id, payload.reservation_id, participant_id),
+            (raffle_id, reservation_id, participant_id),
         )
         rows = cur.fetchall()
         if not rows:
             cur.close()
             raise HTTPException(status_code=400, detail="Reservation expired or not found")
+        participant_email = (rows[0][2] or "").strip().lower()
+        if participant_email != actor_email:
+            cur.close()
+            raise HTTPException(status_code=403, detail="Reservation does not belong to the authenticated user")
 
         ticket_ids = [row[0] for row in rows]
         numbers = sorted(row[1] for row in rows)
@@ -457,6 +491,16 @@ def confirm_purchase(raffle_id: uuid.UUID, payload: PurchaseConfirmRequest) -> d
             ) VALUES (%s, %s, %s, 'confirmed', %s, %s, %s)
             """,
             (purchase_id, raffle_id, participant_id, total_price, currency, payload.payment_method),
+        )
+        charge_wallet_for_purchase(
+            cur,
+            user_id=actor_id,
+            amount=total_price,
+            currency=currency,
+            raffle_id=raffle_id,
+            purchase_id=purchase_id,
+            reservation_id=reservation_id,
+            description=f"Compra de {len(ticket_ids)} numeros",
         )
         placeholders = ", ".join(["%s"] * len(ticket_ids))
         cur.execute(

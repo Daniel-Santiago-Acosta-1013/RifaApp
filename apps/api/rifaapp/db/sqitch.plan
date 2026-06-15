@@ -6,3 +6,4 @@ create_read_schema 2026-05-24T18:31:00Z RifaApp Team <team@rifaapp.local> # read
 raffle_owner 2026-05-24T18:32:00Z RifaApp Team <team@rifaapp.local> # add owner_id to raffles and read model
 read_projection_triggers 2026-05-24T18:33:00Z RifaApp Team <team@rifaapp.local> # keep read model in sync from DB triggers
 cognito_users 2026-05-31T20:00:00Z RifaApp Team <team@rifaapp.local> # add Cognito identity columns to users
+wallets 2026-06-15T05:15:00Z RifaApp Team <team@rifaapp.local> # add user wallets and wallet transactions

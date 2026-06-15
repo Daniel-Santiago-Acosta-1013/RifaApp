@@ -10,6 +10,8 @@ import type {
   ReservationRequest,
   ReservationResponse,
   User,
+  Wallet,
+  WalletDepositRequest,
 } from "../types";
 import { getAuthToken } from "../auth/token";
 
@@ -177,5 +179,18 @@ export const loginUser = (payload: { email: string; password: string }) =>
   });
 
 export const getCurrentUser = () => request<User>(API_WRITE_BASE_URL, "/auth/me");
+
+export const getWallet = () => request<Wallet>(API_WRITE_BASE_URL, "/wallet");
+
+export const depositWallet = (payload: WalletDepositRequest) =>
+  request<Wallet>(API_WRITE_BASE_URL, "/wallet/deposits", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export const resetWallet = () =>
+  request<Wallet>(API_WRITE_BASE_URL, "/wallet/reset", {
+    method: "POST",
+  });
 
 export { ApiError };

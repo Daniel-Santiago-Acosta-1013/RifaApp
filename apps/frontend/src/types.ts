@@ -122,3 +122,36 @@ export type Purchase = {
   payment_method?: string | null;
   created_at: string;
 };
+
+export type WalletPaymentMethod = "pse_demo" | "nequi_demo" | "card_demo";
+
+export type WalletTransactionType = "deposit" | "purchase" | "refund" | "reset";
+
+export type WalletTransaction = {
+  id: string;
+  type: WalletTransactionType;
+  amount: string;
+  currency: string;
+  status: "completed";
+  description: string;
+  method?: WalletPaymentMethod | "wallet_demo" | null;
+  raffle_id?: string | null;
+  purchase_id?: string | null;
+  reservation_id?: string | null;
+  created_at: string;
+};
+
+export type Wallet = {
+  user_id: string;
+  balance: string;
+  currency: string;
+  transactions: WalletTransaction[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type WalletDepositRequest = {
+  amount: number;
+  currency?: string;
+  method: WalletPaymentMethod;
+};

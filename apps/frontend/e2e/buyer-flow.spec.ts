@@ -5,7 +5,7 @@ import { seedStorage } from "./storage";
 test("flujo comprador reserva y confirma compra", async ({ page }) => {
   const state = createMockState();
   await setupMockApi(page, state);
-  await seedStorage(page, { user: state.user, mode: "buy", balance: 150000 });
+  await seedStorage(page, { user: state.user, mode: "buy" });
 
   const raffleId = state.raffles[0].id;
   await page.goto(`/raffles/${raffleId}`);

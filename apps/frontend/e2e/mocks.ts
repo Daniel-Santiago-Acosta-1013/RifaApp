@@ -10,6 +10,8 @@ import type {
   PurchaseConfirmRequest,
   PurchaseConfirmResponse,
   User,
+  Wallet,
+  WalletDepositRequest,
 } from "../src/types";
 
 type MockState = {
@@ -18,11 +20,13 @@ type MockState = {
   numbersByRaffleId: Record<string, RaffleNumber[]>;
   purchasesByParticipant: Record<string, Purchase[]>;
   reservationsById: Record<string, ReservationResponse>;
+  wallet: Wallet;
   idCounters: {
     raffle: number;
     reservation: number;
     purchase: number;
     participant: number;
+    walletTransaction: number;
   };
 };
 
@@ -128,6 +132,7 @@ export const createMockState = (): MockState => {
   };
 
   const raffles = createBaseRaffles(user.id);
+  const now = new Date("2024-01-01T00:00:00.000Z").toISOString();
   const numbersByRaffleId: Record<string, RaffleNumber[]> = {};
   raffles.forEach((raffle) => {
     numbersByRaffleId[raffle.id] = createNumbers(raffle);
@@ -139,11 +144,20 @@ export const createMockState = (): MockState => {
     numbersByRaffleId,
     purchasesByParticipant: {},
     reservationsById: {},
+    wallet: {
+      user_id: user.id,
+      balance: "150000",
+      currency: "COP",
+      transactions: [],
+      created_at: now,
+      updated_at: now,
+    },
     idCounters: {
       raffle: 300,
       reservation: 1,
       purchase: 1,
       participant: 1,
+      walletTransaction: 1,
     },
   };
 };
@@ -180,6 +194,22 @@ const updateNumberStatus = (numbers: RaffleNumber[], selected: number[], status:
 
 const countStatus = (numbers: RaffleNumber[], status: RaffleNumber["status"]) =>
   numbers.filter((item) => item.status === status).length;
+
+const addWalletTransaction = (
+  state: MockState,
+  transaction: Omit<Wallet["transactions"][number], "id" | "created_at" | "status">,
+) => {
+  const now = new Date().toISOString();
+  const item: Wallet["transactions"][number] = {
+    ...transaction,
+    id: createId(state, "walletTransaction", "wallet-tx"),
+    status: "completed",
+    created_at: now,
+  };
+  state.wallet.transactions = [item, ...state.wallet.transactions];
+  state.wallet.updated_at = now;
+  return item;
+};
 
 export const setupMockApi = async (page: Page, state: MockState) => {
   if (process.env.E2E_USE_LIVE_API === "true") {
@@ -250,6 +280,40 @@ export const setupMockApi = async (page: Page, state: MockState) => {
         state.user.email = payload.email;
       }
       return route.fulfill(jsonResponse(state.user));
+    }
+
+    if (request.method() === "GET" && path === "/wallet") {
+      return route.fulfill(jsonResponse(state.wallet));
+    }
+
+    if (request.method() === "POST" && path === "/wallet/deposits") {
+      const payload = parseJsonBody(raw) as WalletDepositRequest | null;
+      if (!payload || !Number.isFinite(Number(payload.amount)) || Number(payload.amount) <= 0) {
+        return route.fulfill(jsonResponse({ message: "Invalid payload" }, 400));
+      }
+      const amount = Number(payload.amount);
+      state.wallet.balance = String(Number(state.wallet.balance) + amount);
+      addWalletTransaction(state, {
+        type: "deposit",
+        amount: String(amount),
+        currency: payload.currency || "COP",
+        description: `Recarga demo con ${payload.method}`,
+        method: payload.method,
+      });
+      return route.fulfill(jsonResponse(state.wallet));
+    }
+
+    if (request.method() === "POST" && path === "/wallet/reset") {
+      const previousBalance = Number(state.wallet.balance);
+      state.wallet.balance = "0";
+      addWalletTransaction(state, {
+        type: "reset",
+        amount: String(previousBalance),
+        currency: state.wallet.currency,
+        description: "Billetera demo vaciada",
+        method: null,
+      });
+      return route.fulfill(jsonResponse(state.wallet));
     }
 
     if (request.method() === "POST" && path === "/raffles") {
@@ -353,6 +417,10 @@ export const setupMockApi = async (page: Page, state: MockState) => {
         return route.fulfill(jsonResponse({ message: "Reservation not found" }, 404));
       }
       const purchaseId = createId(state, "purchase", "purchase");
+      const totalPrice = Number(reservation.total_price);
+      if (Number(state.wallet.balance) < totalPrice) {
+        return route.fulfill(jsonResponse({ detail: `Saldo insuficiente. Te faltan ${totalPrice - Number(state.wallet.balance)} COP.` }, 402));
+      }
       const purchase: PurchaseConfirmResponse = {
         purchase_id: purchaseId,
         raffle_id: raffleId,
@@ -383,6 +451,17 @@ export const setupMockApi = async (page: Page, state: MockState) => {
         created_at: purchase.created_at,
       };
       state.purchasesByParticipant[reservation.participant_id] = [purchaseItem, ...purchases];
+      state.wallet.balance = String(Number(state.wallet.balance) - totalPrice);
+      addWalletTransaction(state, {
+        type: "purchase",
+        amount: reservation.total_price,
+        currency: reservation.currency,
+        description: `Compra de ${reservation.numbers.length} numeros`,
+        method: "wallet_demo",
+        raffle_id: raffleId,
+        purchase_id: purchaseId,
+        reservation_id: reservation.reservation_id,
+      });
 
       return route.fulfill(jsonResponse(purchase));
     }

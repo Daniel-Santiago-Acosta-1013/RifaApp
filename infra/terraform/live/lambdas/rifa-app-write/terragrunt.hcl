@@ -82,15 +82,18 @@ locals {
     "GET /rifa-app-write/redoc",
     "POST /rifa-app-write/migrations/run",
     "POST /rifa-app-write/raffles/{raffle_id}/reservations",
-    "POST /rifa-app-write/raffles/{raffle_id}/confirm",
     "POST /rifa-app-write/raffles/{raffle_id}/release",
   ]
 
   protected_write_routes = [
     "GET /rifa-app-write/auth/me",
+    "GET /rifa-app-write/wallet",
+    "POST /rifa-app-write/wallet/deposits",
+    "POST /rifa-app-write/wallet/reset",
     "POST /rifa-app-write/raffles",
     "PATCH /rifa-app-write/raffles/{raffle_id}",
     "DELETE /rifa-app-write/raffles/{raffle_id}",
+    "POST /rifa-app-write/raffles/{raffle_id}/confirm",
     "POST /rifa-app-write/raffles/{raffle_id}/draw",
   ]
 }

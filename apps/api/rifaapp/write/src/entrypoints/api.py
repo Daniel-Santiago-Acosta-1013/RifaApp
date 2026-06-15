@@ -14,7 +14,7 @@ from mangum import Mangum
 from rifaapp.shared.api.routes import health
 from rifaapp.shared.core.config import settings
 from rifaapp.shared.core.logging import configure_logging
-from rifaapp.write.src.entrypoints.routes import auth, migrations, raffles
+from rifaapp.write.src.entrypoints.routes import auth, migrations, raffles, wallet
 
 configure_logging()
 
@@ -44,6 +44,7 @@ api_router.include_router(health.router)
 api_router.include_router(auth.router)
 api_router.include_router(migrations.router)
 api_router.include_router(raffles.router)
+api_router.include_router(wallet.router)
 app.include_router(api_router)
 
 

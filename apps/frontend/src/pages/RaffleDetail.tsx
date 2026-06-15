@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import {
   AccountBalanceWallet,
   Celebration,
@@ -86,8 +86,9 @@ const PurchaseNumbers = ({ numbers, totalTickets }: { numbers: number[]; totalTi
 
 const RaffleDetail = () => {
   const { raffleId } = useParams<{ raffleId: string }>();
+  const location = useLocation();
   const { user } = useAuth();
-  const { balance, credit, debit } = useApp();
+  const { balance, refreshWallet } = useApp();
   const isLoggedIn = !!user;
 
   const [raffle, setRaffle] = useState<Raffle | null>(null);
@@ -254,6 +255,11 @@ const RaffleDetail = () => {
   const totalPrice = reservation
     ? parseFloat(String(reservation.total_price))
     : selectedNumbers.length * parseFloat(String(raffle.ticket_price));
+  const reservationTotal = reservation ? parseFloat(String(reservation.total_price)) : 0;
+  const missingWalletAmount = reservation ? Math.max(0, reservationTotal - balance) : 0;
+  const walletTopUpHref = reservation
+    ? `/wallet?amount=${Math.ceil(missingWalletAmount || reservationTotal)}&returnTo=${encodeURIComponent(location.pathname)}`
+    : "/wallet";
   const reservedNumbers = reservation?.numbers ?? purchase?.numbers ?? [];
   const canSelectNumbers = raffleOpen && isLoggedIn && !reservation && !purchase;
   const isOwner = !!user && raffle.owner_id === user.id;
@@ -318,8 +324,9 @@ const RaffleDetail = () => {
     if (!raffleId || !reservation) return;
 
     const amount = parseFloat(String(reservation.total_price));
-    if (!debit(amount)) {
-      setPurchaseError("Saldo demo insuficiente para confirmar esta compra.");
+    const missingAmount = Math.max(0, amount - balance);
+    if (missingAmount > 0) {
+      setPurchaseError(`Saldo insuficiente. Te faltan ${formatCurrency(missingAmount, reservation.currency)} para completar la compra.`);
       return;
     }
 
@@ -335,9 +342,9 @@ const RaffleDetail = () => {
       setParticipantId(user?.email || "", response.participant_id);
       setReservation(null);
       setSelectedNumbers([]);
+      await refreshWallet();
       await refreshNumbers();
     } catch (err) {
-      credit(amount);
       setPurchaseError(err instanceof Error ? err.message : "No se pudo confirmar la compra.");
     } finally {
       setConfirming(false);
@@ -727,7 +734,7 @@ const RaffleDetail = () => {
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                       <Stack direction="row" spacing={1} alignItems="center" color="text.secondary">
                         <AccountBalanceWallet fontSize="small" />
-                        <Typography variant="body2">Saldo demo</Typography>
+                        <Typography variant="body2">Billetera</Typography>
                       </Stack>
                       <Typography variant="body2" fontWeight={600}>
                         {formatCurrency(balance, reservation.currency)}
@@ -735,6 +742,20 @@ const RaffleDetail = () => {
                     </Stack>
                   </Stack>
                 </Paper>
+
+                {missingWalletAmount > 0 && (
+                  <Alert
+                    severity="warning"
+                    sx={{ borderRadius: 3 }}
+                    action={
+                      <Button component={Link} to={walletTopUpHref} color="inherit" size="small">
+                        Ingresar dinero
+                      </Button>
+                    }
+                  >
+                    Te faltan {formatCurrency(missingWalletAmount, reservation.currency)} en tu billetera demo.
+                  </Alert>
+                )}
 
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="flex-end">
                   <Button
