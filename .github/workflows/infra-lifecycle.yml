@@ -27,14 +27,14 @@ env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
   TG_NON_INTERACTIVE: "true"
-  PROJECT_NAME: ${{ vars.PROJECT_NAME || 'rifaapp' }}
-  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'dev' }}
-  COGNITO_SES_EMAIL_IDENTITY: ${{ vars.COGNITO_SES_EMAIL_IDENTITY || '' }}
-  COGNITO_SES_SOURCE_ARN: ${{ vars.COGNITO_SES_SOURCE_ARN || '' }}
-  COGNITO_FROM_EMAIL_ADDRESS: ${{ vars.COGNITO_FROM_EMAIL_ADDRESS || '' }}
-  COGNITO_REPLY_TO_EMAIL_ADDRESS: ${{ vars.COGNITO_REPLY_TO_EMAIL_ADDRESS || '' }}
-  COGNITO_EMAIL_SENDING_ACCOUNT: ${{ vars.COGNITO_EMAIL_SENDING_ACCOUNT || 'DEVELOPER' }}
-  COGNITO_PASSWORD_MINIMUM_LENGTH: ${{ vars.COGNITO_PASSWORD_MINIMUM_LENGTH || '8' }}
+  PROJECT_NAME: rifaapp
+  ENVIRONMENT: dev
+  COGNITO_SES_EMAIL_IDENTITY: ''
+  COGNITO_SES_SOURCE_ARN: ''
+  COGNITO_FROM_EMAIL_ADDRESS: ''
+  COGNITO_REPLY_TO_EMAIL_ADDRESS: ''
+  COGNITO_EMAIL_SENDING_ACCOUNT: COGNITO_DEFAULT
+  COGNITO_PASSWORD_MINIMUM_LENGTH: '8'
 
 concurrency:
   group: rifaapp-infra-lifecycle
@@ -119,8 +119,8 @@ jobs:
       - name: Cleanup orphaned AWS resources in project VPC
         if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
         run: |
-          PROJECT_NAME="${{ vars.PROJECT_NAME || 'rifaapp' }}"
-          ENVIRONMENT="${{ vars.ENVIRONMENT || 'dev' }}"
+          PROJECT_NAME="${PROJECT_NAME:-rifaapp}"
+          ENVIRONMENT="${ENVIRONMENT:-dev}"
           VPC_NAME="${PROJECT_NAME}-${ENVIRONMENT}-vpc"
 
           echo "Looking up VPC by tag Name=$VPC_NAME..."
@@ -163,10 +163,8 @@ jobs:
         if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
         run: |
           ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-          STATE_BUCKET="${{ vars.STATE_BUCKET_NAME }}"
-          if [ -z "$STATE_BUCKET" ]; then
-            STATE_BUCKET="rifaapp-terraform-state-${ACCOUNT_ID}"
-          fi
+          PROJECT_NAME="${PROJECT_NAME:-rifaapp}"
+          STATE_BUCKET="${PROJECT_NAME}-terraform-state-${ACCOUNT_ID}"
           STATE_KEY="rifaapp/frontend/terraform.tfstate"
           STATE_FILE="${RUNNER_TEMP}/frontend.tfstate"
 
@@ -221,8 +219,8 @@ jobs:
       - name: Post-destroy cleanup of remaining project resources
         if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
         run: |
-          PROJECT_NAME="${{ vars.PROJECT_NAME || 'rifaapp' }}"
-          ENVIRONMENT="${{ vars.ENVIRONMENT || 'dev' }}"
+          PROJECT_NAME="${PROJECT_NAME:-rifaapp}"
+          ENVIRONMENT="${ENVIRONMENT:-dev}"
           NAME_PREFIX="${PROJECT_NAME}-${ENVIRONMENT}"
 
           echo "=== Cleaning up Lambda Layers ==="
@@ -341,14 +339,11 @@ jobs:
       - name: Verify project resources are gone
         if: ${{ github.event.inputs.action == 'destroy' || github.event.inputs.action == 'destroy-and-recreate' }}
         run: |
-          PROJECT_NAME="${{ vars.PROJECT_NAME || 'rifaapp' }}"
-          ENVIRONMENT="${{ vars.ENVIRONMENT || 'dev' }}"
+          PROJECT_NAME="${PROJECT_NAME:-rifaapp}"
+          ENVIRONMENT="${ENVIRONMENT:-dev}"
           NAME_PREFIX="${PROJECT_NAME}-${ENVIRONMENT}"
           ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-          STATE_BUCKET="${{ vars.STATE_BUCKET_NAME }}"
-          if [ -z "$STATE_BUCKET" ]; then
-            STATE_BUCKET="rifaapp-terraform-state-${ACCOUNT_ID}"
-          fi
+          STATE_BUCKET="${PROJECT_NAME}-terraform-state-${ACCOUNT_ID}"
           leftovers=0
 
           echo "Allowed residual resource: s3://${STATE_BUCKET}"

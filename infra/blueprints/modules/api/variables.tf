@@ -33,7 +33,7 @@ variable "cors_allow_methods" {
 }
 
 variable "cognito_email_identity" {
-  description = "Email individual para verificar en SES y usar como remitente de Cognito. Dejalo vacio si usas cognito_ses_source_arn."
+  description = "Email individual para verificar en SES y usar como remitente de Cognito solo en modo DEVELOPER. Dejalo vacio si usas cognito_ses_source_arn."
   type        = string
   default     = ""
 }
@@ -57,9 +57,14 @@ variable "cognito_reply_to_email_address" {
 }
 
 variable "cognito_email_sending_account" {
-  description = "COGNITO_DEFAULT o DEVELOPER. Usa DEVELOPER para SES y plantillas HTML custom."
+  description = "COGNITO_DEFAULT o DEVELOPER. Usa DEVELOPER solo con una identidad SES ya verificada."
   type        = string
-  default     = "DEVELOPER"
+  default     = "COGNITO_DEFAULT"
+
+  validation {
+    condition     = contains(["COGNITO_DEFAULT", "DEVELOPER"], var.cognito_email_sending_account)
+    error_message = "cognito_email_sending_account debe ser COGNITO_DEFAULT o DEVELOPER."
+  }
 }
 
 variable "cognito_password_minimum_length" {

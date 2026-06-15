@@ -17,8 +17,8 @@ env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
   TG_NON_INTERACTIVE: "true"
-  PROJECT_NAME: ${{ vars.PROJECT_NAME || 'rifaapp' }}
-  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'dev' }}
+  PROJECT_NAME: rifaapp
+  ENVIRONMENT: dev
 
 concurrency:
   group: rifaapp-frontend-deploy

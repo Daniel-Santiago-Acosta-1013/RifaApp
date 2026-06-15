@@ -128,7 +128,7 @@ resource "aws_codebuild_project" "migrations" {
 
     environment_variable {
       name  = "AWS_REGION"
-      value = data.aws_region.current.name
+      value = data.aws_region.current.region
     }
 
     environment_variable {

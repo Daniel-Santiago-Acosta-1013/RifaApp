@@ -23,7 +23,7 @@ resource "aws_apigatewayv2_stage" "main" {
 }
 
 resource "aws_ses_email_identity" "cognito" {
-  count = var.cognito_email_identity != "" ? 1 : 0
+  count = local.has_cognito_email_identity ? 1 : 0
   email = var.cognito_email_identity
 }
 
@@ -82,9 +82,14 @@ resource "aws_lambda_function" "cognito_custom_message" {
 }
 
 locals {
-  cognito_ses_source_arn       = var.cognito_ses_source_arn != null ? var.cognito_ses_source_arn : (var.cognito_email_identity != "" ? aws_ses_email_identity.cognito[0].arn : null)
-  use_cognito_custom_messages  = var.cognito_email_sending_account == "DEVELOPER" && (var.cognito_ses_source_arn != null || var.cognito_email_identity != "")
-  cognito_email_source_arn     = var.cognito_email_sending_account == "DEVELOPER" ? local.cognito_ses_source_arn : null
+  has_cognito_ses_source_arn = var.cognito_ses_source_arn != null && var.cognito_ses_source_arn != ""
+  has_cognito_email_identity = var.cognito_email_sending_account == "DEVELOPER" && var.cognito_email_identity != ""
+  cognito_ses_source_arn     = local.has_cognito_ses_source_arn ? var.cognito_ses_source_arn : (local.has_cognito_email_identity ? aws_ses_email_identity.cognito[0].arn : null)
+  use_cognito_custom_messages = (
+    var.cognito_email_sending_account == "DEVELOPER" &&
+    local.cognito_ses_source_arn != null
+  )
+  cognito_email_source_arn = var.cognito_email_sending_account == "DEVELOPER" ? local.cognito_ses_source_arn : null
 }
 
 resource "aws_cognito_user_pool" "main" {
@@ -182,6 +187,6 @@ resource "aws_apigatewayv2_authorizer" "cognito_jwt" {
 
   jwt_configuration {
     audience = [aws_cognito_user_pool_client.frontend.id]
-    issuer   = "https://cognito-idp.${data.aws_region.current.name}.amazonaws.com/${aws_cognito_user_pool.main.id}"
+    issuer   = "https://cognito-idp.${data.aws_region.current.region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
   }
 }

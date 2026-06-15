@@ -23,5 +23,5 @@ output "cognito_jwt_authorizer_id" {
 }
 
 output "cognito_region" {
-  value = data.aws_region.current.name
+  value = data.aws_region.current.region
 }
