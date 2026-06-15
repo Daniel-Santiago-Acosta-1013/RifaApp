@@ -136,6 +136,11 @@ resource "aws_apigatewayv2_route" "protected_routes" {
   authorizer_id      = var.jwt_authorizer_id
 }
 
+moved {
+  from = aws_apigatewayv2_route.routes["POST /rifa-app-write/raffles/{raffle_id}/confirm"]
+  to   = aws_apigatewayv2_route.protected_routes["POST /rifa-app-write/raffles/{raffle_id}/confirm"]
+}
+
 resource "aws_lambda_permission" "apigw" {
   statement_id  = "AllowAPIGatewayInvoke-${var.lambda_name}"
   action        = "lambda:InvokeFunction"
