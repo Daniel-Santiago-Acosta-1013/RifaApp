@@ -14,7 +14,7 @@ import {
   Savings,
   Smartphone,
 } from "@mui/icons-material";
-import { Alert, Box, Button, Chip, Container, InputAdornment, Paper, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, Container, Paper, Stack, TextField, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
 import Onboarding from "../components/Onboarding";
@@ -80,6 +80,18 @@ const sanitizeReturnTo = (value: string | null) => {
 };
 
 const roundDepositAmount = (value: number) => Math.ceil(value / 1000) * 1000;
+
+const parseDepositAmountInput = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  return String(Number(digits));
+};
+
+const formatDepositAmountInput = (value: string) => {
+  if (!value) return "";
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? formatMoney(numeric) : "";
+};
 
 const surfaceSx = {
   border: "1px solid",
@@ -355,16 +367,13 @@ const WalletPage = () => {
 
             <TextField
               label="Monto a ingresar"
-              type="number"
-              value={amount}
+              type="text"
+              value={formatDepositAmountInput(amount)}
               onChange={(event) => {
-                setAmount(event.target.value);
+                setAmount(parseDepositAmountInput(event.target.value));
                 setFeedback(null);
               }}
-              inputProps={{ min: MIN_DEPOSIT, max: MAX_DEPOSIT, step: 1000 }}
-              InputProps={{
-                startAdornment: <InputAdornment position="start">$</InputAdornment>,
-              }}
+              inputProps={{ inputMode: "numeric" }}
               error={amount !== "" && !hasValidAmount}
               helperText={`Minimo ${formatMoney(MIN_DEPOSIT)}. Maximo ${formatMoney(MAX_DEPOSIT)}.`}
               fullWidth
