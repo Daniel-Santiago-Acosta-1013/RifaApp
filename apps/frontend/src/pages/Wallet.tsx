@@ -14,7 +14,7 @@ import {
   Savings,
   Smartphone,
 } from "@mui/icons-material";
-import { Alert, Box, Button, Chip, InputAdornment, Paper, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, Container, InputAdornment, Paper, Stack, TextField, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
 import Onboarding from "../components/Onboarding";
@@ -161,7 +161,9 @@ const WalletPage = () => {
   };
 
   return (
-    <Stack spacing={{ xs: 2.5, md: 3.5 }} sx={{ pb: { xs: 2, sm: 0 } }}>
+    <Box component="main">
+      <Container maxWidth="md" sx={{ py: { xs: 3, md: 5 } }}>
+        <Stack spacing={{ xs: 2.5, md: 3.5 }} sx={{ pb: { xs: 2, sm: 0 } }}>
       <PageHeader
         eyebrow="Billetera demo"
         title="Saldo para comprar rifas"
@@ -193,9 +195,9 @@ const WalletPage = () => {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", lg: "360px minmax(0, 1fr)" },
+          gridTemplateColumns: { xs: "1fr", md: "300px minmax(0, 1fr)" },
           gap: { xs: 2, md: 2.5 },
-          alignItems: "stretch",
+          alignItems: "start",
         }}
       >
         <Paper
@@ -581,7 +583,9 @@ const WalletPage = () => {
           )}
         </Stack>
       </Paper>
-    </Stack>
+        </Stack>
+      </Container>
+    </Box>
   );
 };
 
