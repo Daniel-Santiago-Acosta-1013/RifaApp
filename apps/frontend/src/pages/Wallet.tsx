@@ -14,7 +14,7 @@ import {
   Savings,
   Smartphone,
 } from "@mui/icons-material";
-import { Alert, Box, Button, Chip, Container, Paper, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, Container, Pagination, Paper, Stack, TextField, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
 import Onboarding from "../components/Onboarding";
@@ -26,6 +26,7 @@ import { formatDate, formatMoney } from "../utils/format";
 
 const MIN_DEPOSIT = 5000;
 const MAX_DEPOSIT = 1000000;
+const MOVEMENTS_PAGE_SIZE = 3;
 
 const quickAmounts = [20000, 50000, 100000, 200000];
 
@@ -111,12 +112,26 @@ const WalletPage = () => {
   const [amount, setAmount] = useState(String(initialAmount));
   const [selectedMethod, setSelectedMethod] = useState<WalletPaymentMethod>("pse_demo");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [movementsPage, setMovementsPage] = useState(1);
+
+  const movementPageCount = Math.max(1, Math.ceil(transactions.length / MOVEMENTS_PAGE_SIZE));
+  const currentMovementsPage = Math.min(movementsPage, movementPageCount);
+  const visibleTransactions = useMemo(() => {
+    const start = (currentMovementsPage - 1) * MOVEMENTS_PAGE_SIZE;
+    return transactions.slice(start, start + MOVEMENTS_PAGE_SIZE);
+  }, [currentMovementsPage, transactions]);
+  const movementStart = transactions.length === 0 ? 0 : (currentMovementsPage - 1) * MOVEMENTS_PAGE_SIZE + 1;
+  const movementEnd = Math.min(currentMovementsPage * MOVEMENTS_PAGE_SIZE, transactions.length);
 
   useEffect(() => {
     if (Number.isFinite(requestedAmount) && requestedAmount > 0) {
       setAmount(String(roundDepositAmount(requestedAmount)));
     }
   }, [requestedAmount]);
+
+  useEffect(() => {
+    setMovementsPage((page) => Math.min(page, movementPageCount));
+  }, [movementPageCount]);
 
   if (!user) {
     return (
@@ -533,7 +548,7 @@ const WalletPage = () => {
             </Box>
           ) : (
             <Stack spacing={1.2}>
-              {transactions.map((transaction) => (
+              {visibleTransactions.map((transaction) => (
                 <Box
                   key={transaction.id}
                   sx={{
@@ -556,7 +571,10 @@ const WalletPage = () => {
                         display: "grid",
                         placeItems: "center",
                         flexShrink: 0,
-                        color: transaction.type === "deposit" || transaction.type === "refund" ? "secondary.main" : "primary.main",
+                        color:
+                          transaction.type === "deposit" || transaction.type === "refund"
+                            ? "secondary.main"
+                            : "primary.main",
                         backgroundColor:
                           transaction.type === "deposit" || transaction.type === "refund"
                             ? "rgba(47,180,154,0.1)"
@@ -588,6 +606,35 @@ const WalletPage = () => {
                   </Stack>
                 </Box>
               ))}
+              {movementPageCount > 1 && (
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1.5}
+                  alignItems={{ xs: "stretch", sm: "center" }}
+                  justifyContent="space-between"
+                  sx={{ pt: 0.5 }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    Mostrando {movementStart}-{movementEnd} de {transactions.length}
+                  </Typography>
+                  <Pagination
+                    count={movementPageCount}
+                    page={currentMovementsPage}
+                    onChange={(_, page) => setMovementsPage(page)}
+                    color="primary"
+                    shape="rounded"
+                    size="small"
+                    siblingCount={0}
+                    boundaryCount={1}
+                    sx={{
+                      alignSelf: { xs: "center", sm: "auto" },
+                      "& .MuiPagination-ul": {
+                        justifyContent: "center",
+                      },
+                    }}
+                  />
+                </Stack>
+              )}
             </Stack>
           )}
         </Stack>

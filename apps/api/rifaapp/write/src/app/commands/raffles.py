@@ -460,7 +460,7 @@ def confirm_purchase(raffle_id: uuid.UUID, payload: PurchaseConfirmRequest, acto
         cur.execute(
             """
             SELECT t.id, t.number, p.email
-            FROM write.tickets
+            FROM write.tickets t
             JOIN write.participants p ON p.id = t.participant_id
             WHERE t.raffle_id = %s
               AND t.status = 'reserved'
