@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Close,
@@ -50,6 +50,14 @@ const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isLoggedIn = !!user;
+  const canUseDrawerNavigation = !isMobile;
+  const showMenuButton = canUseDrawerNavigation && (location.pathname !== "/" || isLoggedIn);
+
+  useEffect(() => {
+    if (isMobile && drawerOpen) {
+      setDrawerOpen(false);
+    }
+  }, [drawerOpen, isMobile]);
 
   const handleLogout = () => {
     logout();
@@ -68,8 +76,9 @@ const Layout = () => {
         <Container maxWidth="md">
           <Toolbar disableGutters sx={{ minHeight: 64 }}>
             <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flexGrow: 1 }}>
-              {(location.pathname !== "/" || isLoggedIn) && (
+              {showMenuButton && (
                 <IconButton
+                  aria-label="Abrir menu"
                   edge="start"
                   onClick={() => setDrawerOpen(true)}
                   sx={{
@@ -133,108 +142,110 @@ const Layout = () => {
         </Container>
       </AppBar>
 
-      <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-        <Box sx={{ width: 280, p: 2 }}>
-          <Stack spacing={3}>
-            <Stack direction="row" alignItems="center" justifyContent="space-between">
-              <Brand />
-              <IconButton onClick={() => setDrawerOpen(false)} size="small" sx={{ color: "text.secondary" }}>
-                <Close />
-              </IconButton>
-            </Stack>
+      {canUseDrawerNavigation && (
+        <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+          <Box sx={{ width: 280, p: 2 }}>
+            <Stack spacing={3}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Brand />
+                <IconButton onClick={() => setDrawerOpen(false)} size="small" sx={{ color: "text.secondary" }}>
+                  <Close />
+                </IconButton>
+              </Stack>
 
-            <List disablePadding>
-              {filteredNavItems.map((item) => (
-                <ListItemButton
-                  key={item.href}
-                  component="a"
-                  href={item.href}
-                  selected={location.pathname === item.href}
-                  onClick={() => setDrawerOpen(false)}
-                  sx={{
-                    borderRadius: 3,
-                    mb: 0.5,
-                    transition: "all 0.2s ease",
-                    "&.Mui-selected": {
-                      backgroundColor: "rgba(243, 107, 79, 0.08)",
-                      color: "primary.main",
-                      "&:hover": {
-                        backgroundColor: "rgba(243, 107, 79, 0.12)",
-                      },
-                      "& .MuiListItemIcon-root": {
+              <List disablePadding>
+                {filteredNavItems.map((item) => (
+                  <ListItemButton
+                    key={item.href}
+                    component="a"
+                    href={item.href}
+                    selected={location.pathname === item.href}
+                    onClick={() => setDrawerOpen(false)}
+                    sx={{
+                      borderRadius: 3,
+                      mb: 0.5,
+                      transition: "all 0.2s ease",
+                      "&.Mui-selected": {
+                        backgroundColor: "rgba(243, 107, 79, 0.08)",
                         color: "primary.main",
-                      },
-                    },
-                    "&:hover": {
-                      backgroundColor: "rgba(28, 31, 38, 0.04)",
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ color: "text.secondary", minWidth: 40 }}>{item.icon}</ListItemIcon>
-                  <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
-                </ListItemButton>
-              ))}
-            </List>
-
-            {!isLoggedIn && (
-              <>
-                <Box sx={{ height: 1, backgroundColor: "divider" }} />
-                <List disablePadding>
-                  {publicItems.map((item) => (
-                    <ListItemButton
-                      key={item.href}
-                      component="a"
-                      href={item.href}
-                      selected={location.pathname === item.href}
-                      onClick={() => setDrawerOpen(false)}
-                      sx={{
-                        borderRadius: 3,
-                        mb: 0.5,
-                        transition: "all 0.2s ease",
-                        "&.Mui-selected": {
-                          backgroundColor: "rgba(243, 107, 79, 0.08)",
-                          color: "primary.main",
-                          "& .MuiListItemIcon-root": {
-                            color: "primary.main",
-                          },
-                        },
                         "&:hover": {
-                          backgroundColor: "rgba(28, 31, 38, 0.04)",
+                          backgroundColor: "rgba(243, 107, 79, 0.12)",
                         },
-                      }}
-                    >
-                      <ListItemIcon sx={{ color: "text.secondary", minWidth: 40 }}>{item.icon}</ListItemIcon>
-                      <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
-                    </ListItemButton>
-                  ))}
-                </List>
-              </>
-            )}
+                        "& .MuiListItemIcon-root": {
+                          color: "primary.main",
+                        },
+                      },
+                      "&:hover": {
+                        backgroundColor: "rgba(28, 31, 38, 0.04)",
+                      },
+                    }}
+                  >
+                    <ListItemIcon sx={{ color: "text.secondary", minWidth: 40 }}>{item.icon}</ListItemIcon>
+                    <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
+                  </ListItemButton>
+                ))}
+              </List>
 
-            {isLoggedIn && (
-              <>
-                <Box sx={{ height: 1, backgroundColor: "divider" }} />
-                <ListItemButton
-                  onClick={handleLogout}
-                  sx={{
-                    borderRadius: 3,
-                    color: "error.main",
-                    transition: "all 0.2s ease",
-                    "&:hover": {
-                      backgroundColor: "rgba(204, 75, 75, 0.08)",
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ color: "error.main", minWidth: 40 }}>
-                    <Logout />
-                  </ListItemIcon>
-                  <ListItemText primary="Cerrar sesion" primaryTypographyProps={{ fontWeight: 600 }} />
-                </ListItemButton>
-              </>
-            )}
-          </Stack>
-        </Box>
-      </Drawer>
+              {!isLoggedIn && (
+                <>
+                  <Box sx={{ height: 1, backgroundColor: "divider" }} />
+                  <List disablePadding>
+                    {publicItems.map((item) => (
+                      <ListItemButton
+                        key={item.href}
+                        component="a"
+                        href={item.href}
+                        selected={location.pathname === item.href}
+                        onClick={() => setDrawerOpen(false)}
+                        sx={{
+                          borderRadius: 3,
+                          mb: 0.5,
+                          transition: "all 0.2s ease",
+                          "&.Mui-selected": {
+                            backgroundColor: "rgba(243, 107, 79, 0.08)",
+                            color: "primary.main",
+                            "& .MuiListItemIcon-root": {
+                              color: "primary.main",
+                            },
+                          },
+                          "&:hover": {
+                            backgroundColor: "rgba(28, 31, 38, 0.04)",
+                          },
+                        }}
+                      >
+                        <ListItemIcon sx={{ color: "text.secondary", minWidth: 40 }}>{item.icon}</ListItemIcon>
+                        <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                </>
+              )}
+
+              {isLoggedIn && (
+                <>
+                  <Box sx={{ height: 1, backgroundColor: "divider" }} />
+                  <ListItemButton
+                    onClick={handleLogout}
+                    sx={{
+                      borderRadius: 3,
+                      color: "error.main",
+                      transition: "all 0.2s ease",
+                      "&:hover": {
+                        backgroundColor: "rgba(204, 75, 75, 0.08)",
+                      },
+                    }}
+                  >
+                    <ListItemIcon sx={{ color: "error.main", minWidth: 40 }}>
+                      <Logout />
+                    </ListItemIcon>
+                    <ListItemText primary="Cerrar sesion" primaryTypographyProps={{ fontWeight: 600 }} />
+                  </ListItemButton>
+                </>
+              )}
+            </Stack>
+          </Box>
+        </Drawer>
+      )}
 
       <Box sx={{ flex: 1, pb: isMobile && isLoggedIn ? 8 : 0 }}>
         <Outlet />

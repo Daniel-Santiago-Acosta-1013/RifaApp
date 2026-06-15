@@ -41,6 +41,17 @@ const buildErrorFeedback = (title: string, error: AuthError | undefined, fallbac
   };
 };
 
+const buildConfirmErrorFeedback = (error: AuthError | undefined, email: string): Feedback => {
+  if (error?.code === "CodeMismatchException") {
+    return {
+      severity: "error",
+      title: "Codigo incorrecto para este correo",
+      detail: `Usa el codigo mas reciente enviado a ${email}. Si reenviaste el codigo, los correos anteriores dejan de servir. Verifica tambien que el correo escrito aqui sea el mismo donde recibiste el codigo.`,
+    };
+  }
+  return buildErrorFeedback("No se pudo confirmar el correo", error, "No se pudo confirmar el correo.");
+};
+
 const ConfirmEmailPage = () => {
   const { confirmRegistration, resendRegistrationCode } = useAuth();
   const navigate = useNavigate();
@@ -79,7 +90,7 @@ const ConfirmEmailPage = () => {
         navigate("/login", { state: { email: targetEmail } });
         return;
       }
-      setFeedback(buildErrorFeedback("No se pudo confirmar el correo", result.error, "No se pudo confirmar el correo."));
+      setFeedback(buildConfirmErrorFeedback(result.error, targetEmail));
     } finally {
       setIsSubmitting(false);
     }
@@ -182,7 +193,8 @@ const ConfirmEmailPage = () => {
               value={code}
               onChange={(event) => setCode(event.target.value)}
               required
-              inputProps={{ inputMode: "numeric" }}
+              helperText="Usa el codigo mas reciente enviado al correo escrito arriba."
+              inputProps={{ inputMode: "numeric", autoComplete: "one-time-code" }}
             />
 
             <Button
